@@ -12,7 +12,7 @@ apt-get update -y
 apt-get install software-properties-common wget make build-essential libssl-dev ca-certificates libasound2 -y
 add-apt-repository ppa:deadsnakes/ppa
 apt-get update -y
-apt-get install -y python3.12 python3-pip python3-venv
+apt-get install -y python3.12 python3-pip python3.12-venv
 EOF
 
 # Set the working directory
@@ -34,7 +34,7 @@ EOF
 ENV SSL_CERT_DIR=/etc/ssl/certs
 
 RUN <<EOT bash
-  python3 -m venv venv
+  python3.12 -m venv venv
   source ./venv/bin/activate
   pip install -r requirements.txt
 EOT
@@ -52,7 +52,10 @@ COPY app .
 # COPY . .
 
 # Specify the command to run the application
-CMD [ "python3", "./run.py" ]
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+# ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
+ENTRYPOINT ["/docker-entrypoint.sh"]
+# CMD [ "python3", "./run.py" ]
 # CMD [ "ls", "-lth" ]
 # CMD [ "pip", "freeze" ]
 # CMD [ "which", "python" ]
