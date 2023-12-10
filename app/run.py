@@ -1,35 +1,115 @@
 import os
+import json
+import hashlib
 
+from openai import OpenAI
 import azure.cognitiveservices.speech as speechsdk
 
-speech_config = speechsdk.SpeechConfig(
-    subscription=os.getenv('AZURE_SERVICE_TOKEN'),
-    region='japaneast',
+client = OpenAI()
+
+DATA_FOLDER = os.getenv('DATA_FOLDER', '/data')
+META_FILE = os.getenv('META_FILE', 'meta.json')
+service_region = os.getenv('REGION', 'japaneast')
+speech_key = os.getenv('AZURE_SERVICE_TOKEN')
+
+jp_speech_config = speechsdk.SpeechConfig(
+    subscription=speech_key,
+    region=service_region,
 )
 audio_config = speechsdk.audio.AudioOutputConfig(use_default_speaker=True)
 
+jp_speech_config.speech_synthesis_voice_name='ja-JP-AoiNeural'
+jp_speech_synthesizer = speechsdk.SpeechSynthesizer(
+    speech_config=jp_speech_config,
+    audio_config=audio_config,
+)
 
-# The language of the voice that speaks.
-speech_config.speech_synthesis_voice_name='ja-JP-AoiNeural'
-speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
+zh_speech_config = speechsdk.SpeechConfig(
+    subscription=speech_key,
+    region=service_region,
+)
+zh_speech_config.speech_synthesis_voice_name = "zh-CN-XiaoyiNeural"
+zh_speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=zh_speech_config)
 
-def tts(text, save_path=None):
+
+en_speech_config = speechsdk.SpeechConfig(
+    subscription=speech_key,
+    region=service_region
+    )
+en_speech_config.speech_synthesis_voice_name = "en-GB-MaisieNeural"
+en_speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=en_speech_config)
+
+
+def get_context(lang: str):
+    if lang == 'zh':
+        return [
+            {"role": "system", "content": "你是一个专业的译者，将用户输入的句子翻译成中文。要求符合原句的语境"},
+        ]
+    elif lang == 'en':
+        return [
+            {
+                "role": "system",
+                "content": '''You're a professional translator who translates sentences entered by users
+                into English. I require the translation to be in line with the original context.'''
+            },
+        ]
+    raise ValueError('wrong language parameter')
+
+
+def translate(text: str, context_messages: list) -> str:
+    resp = client.chat.completions.create(
+        # model="gpt-3.5-turbo",
+        # model='gpt-3.5-turbo-1106',
+        model='gpt-4',
+        # model='gpt-3.5-turbo-16k',
+        # model="gpt-3.5-turbo-0613",
+        # model="gpt-3.5-turbo-16k-0613",
+        messages=context_messages + [{"role": "user", "content": text}],
+    )
+    last_resp = json.loads(resp.model_dump_json())['choices'][0]['message']['content']
+    return last_resp
+
+
+def save_wav(file_name: str, data: bytes):
+    out_wav_file = os.path.join(DATA_FOLDER, file_name)
+    with open(out_wav_file, 'wb') as fout:
+        fout.write(data)
+
+
+def save(text: str, en_text: str, zh_text: str, wav_data):
+    text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
+    for name, wav in wav_data:
+        save_wav(f'{text_hash}.{name}.wav', wav)
+    meta_info = {
+        'hash': text_hash,
+        'ja_text': text,
+        'en_text': en_text,
+        'cn_text': zh_text,
+    }
+    with open(os.path.join(DATA_FOLDER, META_FILE), 'a') as fout:
+        fout.write(json.dumps(meta_info, ensure_ascii=False) + '\n')
+    return meta_info
+
+
+def make_ssml(text, model_name):
     ssml_string = f"""
     <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
-    <voice name='ja-JP-AoiNeural' style='cheerful'>
+    <voice name='{model_name}' style='cheerful'>
         <prosody rate='-10%'>
             {text}
         </prosody>
     </voice>
     </speak>
     """
-    speech_synthesis_result = speech_synthesizer.speak_ssml_async(ssml_string).get()
-    # speech_synthesis_result = speech_synthesizer.speak_text_async(text).get()
+    return ssml_string
+
+
+def tts(text: str, synthesizer, ssml=False):
+    if ssml:
+        speech_synthesis_result = synthesizer.speak_ssml_async(text).get()
+    else:
+        speech_synthesis_result = synthesizer.speak_text_async(text).get()
     if speech_synthesis_result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
-        # print("Speech synthesized for text [{}]".format(text))
-        # return speech_synthesis_result.data
-        # if save_path is not None:
-        #     save(text, speech_synthesis_result.audio_data, save_path)
         return speech_synthesis_result.audio_data
     elif speech_synthesis_result.reason == speechsdk.ResultReason.Canceled:
         cancellation_details = speech_synthesis_result.cancellation_details
@@ -38,9 +118,59 @@ def tts(text, save_path=None):
             if cancellation_details.error_details:
                 print("Error details: {}".format(cancellation_details.error_details))
                 print("Did you set the speech resource key and region values?")
-    print(speech_synthesis_result.reason)
+            raise RuntimeError(cancellation_details.error_details)
 
 
-text = '全国に約25,000社あり、長野県の諏訪湖近くの諏訪大社（旧称：諏訪神社）を総本社とする。また、諏訪神社を中心とする神道の信仰を諏訪信仰（すわしんこう）という。'
-wav_data = tts(text)
-print(len(wav_data))
+def generate(text):
+
+    zh_text = translate(text, get_context('zh'))
+    en_text = translate(text, get_context('en'))
+
+    jp1_ssml_string = f"""
+    <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
+    <voice name='ja-JP-AoiNeural' style='cheerful'>
+        <prosody rate='-10%'>
+            {text}
+        </prosody>
+    </voice>
+    </speak>
+    """
+
+    jp2_ssml_string = f"""
+    <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
+    <voice name='ja-JP-MayuNeural'>
+        <prosody rate='-10%'>
+            {text}
+        </prosody>
+    </voice>
+    </speak>
+    """
+
+    jp3_ssml_string = f"""
+    <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
+    <voice name='ja-JP-DaichiNeural'>
+        {text}
+    </voice>
+    </speak>
+    """
+
+    wav_data = [
+        ('ja-JP-AoiNeural', tts(jp1_ssml_string, jp_speech_synthesizer, ssml=True)),
+        ('ja-JP-MayuNeural', tts(jp2_ssml_string, jp_speech_synthesizer, ssml=True)),
+        ('ja-JP-DaichiNeural', tts(jp3_ssml_string, jp_speech_synthesizer, ssml=True)),
+        ('en', tts(en_text, en_speech_synthesizer)),
+        ('zh', tts(zh_text, zh_speech_synthesizer)),
+    ]
+
+    meta = save(text, en_text, zh_text, wav_data)
+    print(meta)
+    return meta
+
+
+def merge(strategry='random', max_sentences=10):
+    pass
+
+
+if __name__ == '__main__':
+    # generate('旅行に出発するにあたって、必要なものすべてをパックしました。')
+    generate('部屋はゴミだらけだった。')

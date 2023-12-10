@@ -36,6 +36,7 @@ ENV SSL_CERT_DIR=/etc/ssl/certs
 RUN <<EOT bash
   python3.12 -m venv venv
   source ./venv/bin/activate
+  pip install -U pip
   pip install -r requirements.txt
 EOT
 
@@ -51,11 +52,14 @@ COPY app .
 # Copy the rest of the application code to the container
 # COPY . .
 
+USER 1000:1000
+
 # Specify the command to run the application
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 # ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
 ENTRYPOINT ["/docker-entrypoint.sh"]
-# CMD [ "python3", "./run.py" ]
+
+CMD [ "python", "./run.py" ]
 # CMD [ "ls", "-lth" ]
 # CMD [ "pip", "freeze" ]
 # CMD [ "which", "python" ]
