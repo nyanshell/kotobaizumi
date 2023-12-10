@@ -12,7 +12,7 @@ docker build . --progress=plain -t azure-tts:<version> 2>&1 | tee build.log
 ## Run
 
 ```bash
-docker run --env-file=.env -v ./save:/data -it azure-tts:<version>
+docker run --env-file=.env -p 0.0.0.0:5000:5000 -v ./save:/data -it azure-tts:<version>
 ```
 
 ## Config

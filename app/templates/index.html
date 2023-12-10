@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>言葉の泉</title>
+    <style>
+        body {
+            font-family: sans-serif;
+        }
+        .japanese {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 0.5em;
+        }
+        .translation {
+            font-size: 1em;
+        }
+    </style>
+</head>
+<body>
+    <audio controls>
+        <source src="{{ audio_string }}" type="audio/wav">
+    </audio>
+    <div class="japanese">{{ data.ja_text }}</div>
+    <div class="translation">翻訳:</div>
+    <ul>
+        <li>英語: {{ data.en_text }}</li>
+        <li>中国語: {{ data.cn_text }}</li>
+        <li>hash: {{ data.hash }}</li>
+    </ul>
+</body>
+</html>

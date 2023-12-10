@@ -59,7 +59,8 @@ COPY docker-entrypoint.sh /docker-entrypoint.sh
 # ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
 ENTRYPOINT ["/docker-entrypoint.sh"]
 
-CMD [ "python", "./run.py" ]
+CMD [ "flask", "run", "--host=0.0.0.0"]
+# CMD [ "python", "./utils.py" ]
 # CMD [ "ls", "-lth" ]
 # CMD [ "pip", "freeze" ]
 # CMD [ "which", "python" ]

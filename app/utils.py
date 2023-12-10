@@ -27,7 +27,7 @@ jp_speech_config = speechsdk.SpeechConfig(
 )
 audio_config = speechsdk.audio.AudioOutputConfig(use_default_speaker=True)
 
-jp_speech_config.speech_synthesis_voice_name='ja-JP-AoiNeural'
+jp_speech_config.speech_synthesis_voice_name = 'ja-JP-AoiNeural'
 jp_speech_synthesizer = speechsdk.SpeechSynthesizer(
     speech_config=jp_speech_config,
     audio_config=audio_config,
@@ -171,7 +171,6 @@ def generate(text):
         ('zh', tts(zh_text, zh_speech_synthesizer)),
     ]
     meta = save(text, en_text, zh_text, wav_data)
-    print(meta)
     return meta
 
 
@@ -197,11 +196,19 @@ if __name__ == '__main__':
     # generate('旅行に出発するにあたって、必要なものすべてをパックしました。')
     # generate('部屋はゴミだらけだった。')
     data, sample_rate = concatenate_wavs('d41e9a0491ae35e79c6d35b00a56df3d')
-    outfile = '/data/test.wav'
+
+    import io
+
     pause_frames = 2 * sample_rate
     pause_data = b"\x00" * pause_frames
-    with wave.open(outfile, 'wb') as output:
-        output.setparams(data[0][0])
+    wav_binary = io.BytesIO(b'')
+    # with wav_binary as fout:
+    with wave.open(wav_binary, "wb") as fout:
+        fout.setparams(data[0][0])
         for i in range(len(data)):
-            output.writeframes(data[i][1])
-            output.writeframes(pause_data)
+            fout.writeframes(data[i][1])
+            fout.writeframes(pause_data)
+    bs = wav_binary.getvalue()
+    print(len(bs))
+    with open('/data/test.wav', 'wb') as fout:
+        fout.write(bs)
