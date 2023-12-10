@@ -29,3 +29,4 @@ OPENAI_API_KEY=<open-api-key>
 
 - Add grammar explanation.
 - Add sentence reading.
+- Choose by frequency.
