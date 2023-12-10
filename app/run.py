@@ -1,6 +1,7 @@
 import os
 import json
 import hashlib
+import wave
 
 from openai import OpenAI
 import azure.cognitiveservices.speech as speechsdk
@@ -9,6 +10,14 @@ client = OpenAI()
 
 DATA_FOLDER = os.getenv('DATA_FOLDER', '/data')
 META_FILE = os.getenv('META_FILE', 'meta.json')
+PLAYBACK_ORDER = [
+    'ja-JP-AoiNeural',
+    'ja-JP-MayuNeural',
+    'ja-JP-DaichiNeural',
+    'en',
+    'zh'
+]
+
 service_region = os.getenv('REGION', 'japaneast')
 speech_key = os.getenv('AZURE_SERVICE_TOKEN')
 
@@ -161,16 +170,38 @@ def generate(text):
         ('en', tts(en_text, en_speech_synthesizer)),
         ('zh', tts(zh_text, zh_speech_synthesizer)),
     ]
-
     meta = save(text, en_text, zh_text, wav_data)
     print(meta)
     return meta
 
 
-def merge(strategry='random', max_sentences=10):
-    pass
+def generate_empty_wav(num_frames=4):
+    sample_rate = 44100
+    num_frames = 2 * sample_rate
+    empty_data = b"\x00" * num_frames
+    return empty_data
+
+
+def concatenate_wavs(text_hash):
+    data = []
+    sample_rate = 0
+    for model_name in PLAYBACK_ORDER:
+        full_name = os.path.join(DATA_FOLDER, f'{text_hash}.{model_name}.wav')
+        with wave.open(full_name, 'rb') as w:
+            sample_rate = w.getframerate()
+            data.append([w.getparams(), w.readframes(w.getnframes())])
+    return data, sample_rate
 
 
 if __name__ == '__main__':
     # generate('旅行に出発するにあたって、必要なものすべてをパックしました。')
-    generate('部屋はゴミだらけだった。')
+    # generate('部屋はゴミだらけだった。')
+    data, sample_rate = concatenate_wavs('d41e9a0491ae35e79c6d35b00a56df3d')
+    outfile = '/data/test.wav'
+    pause_frames = 2 * sample_rate
+    pause_data = b"\x00" * pause_frames
+    with wave.open(outfile, 'wb') as output:
+        output.setparams(data[0][0])
+        for i in range(len(data)):
+            output.writeframes(data[i][1])
+            output.writeframes(pause_data)
