@@ -1,4 +1,5 @@
-#
+# 言葉の泉
+
 ## build
 
 ```bash
@@ -23,3 +24,8 @@ docker run --env-file=.env -p 0.0.0.0:5000:5000 -v ./save:/data -it azure-tts:<v
 AZURE_SERVICE_TOKEN=<azure-service-token>
 OPENAI_API_KEY=<open-api-key>
 ```
+
+## To-Do
+
+- Add grammar explanation.
+- Add sentence reading.
