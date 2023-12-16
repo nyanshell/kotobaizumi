@@ -16,6 +16,11 @@ with open(os.path.join(DATA_FOLDER, META_FILE), 'r') as fin:
     meta_info = [json.loads(line) for line in fin.readlines()]
 
 
+@app.route("/delete", methods=["DELETE"])
+def remove():
+    raise NotImplementedError()
+
+
 @app.route("/record", methods=["POST"])
 def insert_new():
     data = json.loads(request.data)

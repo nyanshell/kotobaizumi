@@ -2,9 +2,11 @@ import os
 import json
 import hashlib
 import wave
+import re
 
 from openai import OpenAI
 import azure.cognitiveservices.speech as speechsdk
+
 
 client = OpenAI()
 
@@ -47,22 +49,61 @@ en_speech_config = speechsdk.SpeechConfig(
     )
 en_speech_config.speech_synthesis_voice_name = "en-GB-MaisieNeural"
 en_speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=en_speech_config)
+extract_grammar = re.compile("{{(.+?)}}")
+
+ZH_TRANSLATION_PROMPT = [
+    {"role": "system", "content": "你是一个专业的译者，将用户输入的句子翻译成中文。要求符合原句的语境"},
+]
+EN_TRANSLATION_PROMPT = [
+    {
+        "role": "system",
+        "content": '''You're a professional translator who translates sentences entered by users
+        into English. I require the translation to be in line with the original context.'''
+    },
+]
+GRAMMAR_PROMPT = [
+    {
+        "role": "system",
+        "content": '''You're a language teacher who teaching user Japanese language,
+        explain the grammar from user input and add some examples. And add Kana readings for kanji words.
+        Use ** to emphasis the grammar point. Output with aesthetic markdown format.''',
+    },
+    {
+        "role": "user",
+        "content": "そういう～",
+    },
+    {
+        "role": "assistant",
+        "content": '''「そういう～」は日本語の表現で、「そのような〜」という意味を持ちます。これは、特定の種類、状態、或いは品質を持つ何かを表すために使用されます。
+
+例文：
+
+**そういう**態度（たいど）は許容（きょよう）できません。 (Such an attitude is not acceptable.)
+あなたが話（はなし）している**そういう**問題（もんだい）について考（かんが）えてみます。 (I'll think about such a problem you're talking about.)
+**そういう**意図（いと）は全（まった）くありませんでした。 (There was no such intention at all.)''',
+    }
+]
+READING_PROMPT = [
+    {
+        "role": "system",
+        "content": 'add word reading with brackets for the Japanese sentence input',
+    },
+    {
+        "role": "user",
+        "content": "新学年を迎えるにあたって、私たちは新しい計画を立てました。",
+    },
+    {
+        "role": "assistant",
+        "content": "新学年（しんがくねん）を迎（むか）えるにあたって、私（わたし）たちは新（あたら）しい計画（けいかく）を立（た）てました。",
+    },
+]
 
 
-def get_context(lang: str):
-    if lang == 'zh':
-        return [
-            {"role": "system", "content": "你是一个专业的译者，将用户输入的句子翻译成中文。要求符合原句的语境"},
-        ]
-    elif lang == 'en':
-        return [
-            {
-                "role": "system",
-                "content": '''You're a professional translator who translates sentences entered by users
-                into English. I require the translation to be in line with the original context.'''
-            },
-        ]
-    raise ValueError('wrong language parameter')
+def explain_grammar(text: str) -> str:
+    grammar_pattern = extract_grammar.search(text)
+    if grammar_pattern is not None:
+        return translate(grammar_pattern.group(1), GRAMMAR_PROMPT)
+    return ''
 
 
 def translate(text: str, context_messages: list) -> str:
@@ -85,7 +126,7 @@ def save_wav(file_name: str, data: bytes):
         fout.write(data)
 
 
-def save(text: str, en_text: str, zh_text: str, wav_data):
+def save(text: str, en_text: str, zh_text: str, wav_data, explain, reading):
     text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
     for name, wav in wav_data:
         save_wav(f'{text_hash}.{name}.wav', wav)
@@ -94,7 +135,10 @@ def save(text: str, en_text: str, zh_text: str, wav_data):
         'ja_text': text,
         'en_text': en_text,
         'cn_text': zh_text,
+        'explain': explain,
+        'reading': reading,
     }
+    print(meta_info)
     with open(os.path.join(DATA_FOLDER, META_FILE), 'a') as fout:
         fout.write(json.dumps(meta_info, ensure_ascii=False) + '\n')
     return meta_info
@@ -132,8 +176,11 @@ def tts(text: str, synthesizer, ssml=False):
 
 def generate(text):
 
-    zh_text = translate(text, get_context('zh'))
-    en_text = translate(text, get_context('en'))
+    explain = explain_grammar(text)
+    text = text.replace('{{', '').replace('}}', '')
+    zh_text = translate(text, ZH_TRANSLATION_PROMPT)
+    en_text = translate(text, EN_TRANSLATION_PROMPT)
+    reading = translate(text, READING_PROMPT)
 
     jp1_ssml_string = f"""
     <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
@@ -170,7 +217,7 @@ def generate(text):
         ('en', tts(en_text, en_speech_synthesizer)),
         ('zh', tts(zh_text, zh_speech_synthesizer)),
     ]
-    meta = save(text, en_text, zh_text, wav_data)
+    meta = save(text, en_text, zh_text, wav_data, explain, reading)
     return meta
 
 
@@ -195,6 +242,7 @@ def concatenate_wavs(text_hash):
 if __name__ == '__main__':
     # generate('旅行に出発するにあたって、必要なものすべてをパックしました。')
     # generate('部屋はゴミだらけだった。')
+    '''
     data, sample_rate = concatenate_wavs('d41e9a0491ae35e79c6d35b00a56df3d')
 
     import io
@@ -212,3 +260,8 @@ if __name__ == '__main__':
     print(len(bs))
     with open('/data/test.wav', 'wb') as fout:
         fout.write(bs)
+    '''
+    # print(explain_grammar('～たまらない'))
+    # generate test
+    generate('新学年を迎える{{にあたって}}、私たちは新しい計画を立てました。')
+    generate('このコーヒーはとても{{濃い}}。')

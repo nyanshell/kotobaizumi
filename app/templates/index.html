@@ -16,17 +16,27 @@
             font-size: 1em;
         }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
     <audio controls>
         <source src="{{ audio_string }}" type="audio/wav">
     </audio>
     <div class="japanese">{{ data.ja_text }}</div>
+    <div class="japanese">{{ data.reading }}</div>
     <div class="translation">翻訳:</div>
     <ul>
         <li>英語: {{ data.en_text }}</li>
         <li>中国語: {{ data.cn_text }}</li>
         <li>hash: {{ data.hash }}</li>
     </ul>
+
+    <div class="explain">
+        {{ data.explain }}
+    </div>
+    <script>
+        const explainElement = document.querySelector(".explain");
+        explainElement.innerHTML = marked.parse("## Explanation\n\n" + explainElement.textContent);
+    </script>
 </body>
 </html>

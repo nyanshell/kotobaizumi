@@ -27,6 +27,8 @@ OPENAI_API_KEY=<open-api-key>
 
 ## To-Do
 
-- Add grammar explanation.
-- Add sentence reading.
+- [DONE] ~~Add grammar explanation. ~~
+- [DONE] ~~Add sentence reading.~~
+- Support Delete.
 - Choose by frequency.
+- Loop mode.

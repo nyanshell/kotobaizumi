@@ -61,6 +61,3 @@ ENTRYPOINT ["/docker-entrypoint.sh"]
 
 CMD [ "flask", "run", "--host=0.0.0.0"]
 # CMD [ "python", "./utils.py" ]
-# CMD [ "ls", "-lth" ]
-# CMD [ "pip", "freeze" ]
-# CMD [ "which", "python" ]
