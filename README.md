@@ -31,5 +31,5 @@ OPENAI_API_KEY=<open-api-key>
 - [DONE] ~~Add sentence reading.~~
 - [DONE] ~~Support delete.~~
 - [DONE] ~~Choose by frequency.~~
-- Loop mode.
+- [DONE] ~~Loop mode.~~
 - Merge json meta file and sql?

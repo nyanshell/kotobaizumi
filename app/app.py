@@ -6,7 +6,7 @@ from utils import (
     generate,
     encode_audio_string,
     remove_sentence,
-    get_single_phrase,
+    get_phrases,
 )
 
 
@@ -31,8 +31,12 @@ def insert_new():
 
 
 @app.route("/")
-def get_phrase():
+def play():
     sort_type = request.args.get('sort', '')
-    phrase = get_single_phrase(sort_type)
-    audio_string = encode_audio_string(phrase['hash'])
-    return render_template("index.html", audio_string=audio_string, data=phrase)
+    try:
+        return_count = request.args.get('count', 1)
+    except ValueError:
+        return_count = 1
+    phrase_meta = get_phrases(sort_type, return_count=return_count)
+    audio_string = encode_audio_string(phrase_meta)
+    return render_template("index.html", audio_string=audio_string, data=phrase_meta)

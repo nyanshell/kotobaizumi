@@ -22,21 +22,27 @@
     <audio controls>
         <source src="{{ audio_string }}" type="audio/wav">
     </audio>
-    <div class="japanese">{{ data.ja_text }}</div>
-    <div class="japanese">{{ data.reading }}</div>
-    <div class="translation">翻訳:</div>
-    <ul>
-        <li>英語: {{ data.en_text }}</li>
-        <li>中国語: {{ data.cn_text }}</li>
-        <li>hash: {{ data.hash }}</li>
-    </ul>
 
+    {% for item in data %}
+        <div class="japanese">{{ item.ja_text }}</div>
+        <div class="japanese">{{ item.reading }}</div>
+        <div class="translation">翻訳:</div>
+        <ul>
+            <li>英語: {{ item.en_text }}</li>
+            <li>中国語: {{ item.cn_text }}</li>
+            <li>hash: {{ item.hash }}</li>
+        </ul>
+        <hr>
+    {% endfor %}
+
+    {% if data|length == 1 %}
     <div class="explain">
-        {{ data.explain }}
+        {{ data[0].explain }}
     </div>
     <script>
         const explainElement = document.querySelector(".explain");
         explainElement.innerHTML = marked.parse("## Explanation\n\n" + explainElement.textContent);
     </script>
+    {% endif %}
 </body>
 </html>

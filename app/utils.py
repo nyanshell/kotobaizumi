@@ -260,17 +260,20 @@ def concatenate_wavs(text_hash):
     return data, sample_rate
 
 
-def encode_audio_string(hash_text):
-    data, sample_rate = concatenate_wavs(hash_text)
+def encode_audio_string(hash_text: list):
 
-    pause_frames = 2 * sample_rate
-    pause_data = b"\x00" * pause_frames
     wav_binary = io.BytesIO(b'')
     with wave.open(wav_binary, 'wb') as fout:
-        fout.setparams(data[0][0])
-        for i in range(len(data)):
-            fout.writeframes(data[i][1])
-            fout.writeframes(pause_data)
+        for idx, hash_info in enumerate(hash_text):
+            data, sample_rate = concatenate_wavs(hash_info['hash'])
+            pause_frames = 2 * sample_rate
+            pause_data = b"\x00" * pause_frames
+            if idx == 0:
+                fout.setparams(data[0][0])
+            for i in range(len(data)):
+                fout.writeframes(data[i][1])
+                fout.writeframes(pause_data)
+
     audio_base64 = base64.b64encode(wav_binary.getvalue()).decode("ascii")
     return f"data:audio/wav;base64,{audio_base64}"
 
@@ -282,32 +285,36 @@ def remove_sentence(hash_text):
         conn.commit()
 
 
-def get_single_phrase(sort_type: str):
+def get_phrases(sort_type: str, return_count=1):
     with sqlite3.connect(os.path.join(DATA_FOLDER, "meta.db")) as conn:
         db_cursor = conn.cursor()
         if sort_type == 'freq':
-            text_hash, _, _ = db_cursor.execute(
-                f"SELECT * FROM {META_TABLE} ORDER BY count LIMIT 1;"
-            ).fetchone()
+            phrase_info = db_cursor.execute(
+                f"SELECT * FROM {META_TABLE} ORDER BY count LIMIT {return_count};"
+            ).fetchall()
         elif sort_type == 'time':
-            text_hash, _, _ = db_cursor.execute(
-                f"SELECT * FROM {META_TABLE} ORDER BY timestamp LIMIT 1;"
-            ).fetchone()
+            phrase_info = db_cursor.execute(
+                f"SELECT * FROM {META_TABLE} ORDER BY timestamp LIMIT {return_count};"
+            ).fetchall()
         else:
-            text_hash, _, _ = db_cursor.execute(
-                f"SELECT * FROM {META_TABLE} ORDER BY RANDOM() LIMIT 1;"
-            ).fetchone()
-        db_cursor.execute(
-            f"UPDATE {META_TABLE} SET count = count + 1 WHERE hash = ?",
-            (text_hash, )
-        )
+            phrase_info = db_cursor.execute(
+                f"SELECT * FROM {META_TABLE} ORDER BY RANDOM() LIMIT {return_count};"
+            ).fetchall()
+        text_hash = set(hash_text for hash_text, _, _ in phrase_info)
+        for hash_ in text_hash:
+            db_cursor.execute(
+                f"UPDATE {META_TABLE} SET count = count + 1 WHERE hash = ?",
+                (hash_, )
+            )
         conn.commit()
+    phrase_meta = []
     with open(os.path.join(DATA_FOLDER, META_FILE), 'r') as fin:
         for row in fin:
             meta = json.loads(row)
-            if meta['hash'] == text_hash:
-                return meta
-    return {}
+            if meta['hash'] in text_hash:
+                phrase_meta.append(meta)
+                text_hash.remove(meta['hash'])
+    return phrase_meta
 
 
 if __name__ == '__main__':
