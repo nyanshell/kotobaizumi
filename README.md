@@ -27,8 +27,9 @@ OPENAI_API_KEY=<open-api-key>
 
 ## To-Do
 
-- [DONE] ~~Add grammar explanation. ~~
+- [DONE] ~~Add grammar explanation.~~
 - [DONE] ~~Add sentence reading.~~
-- Support Delete.
-- Choose by frequency.
+- [DONE] ~~Support delete.~~
+- [DONE] ~~Choose by frequency.~~
 - Loop mode.
+- Merge json meta file and sql?

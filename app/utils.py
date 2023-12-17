@@ -1,8 +1,13 @@
+import base64
+import io
 import os
 import json
 import hashlib
 import wave
 import re
+import time
+import sqlite3
+from sqlite3 import IntegrityError
 
 from openai import OpenAI
 import azure.cognitiveservices.speech as speechsdk
@@ -12,13 +17,26 @@ client = OpenAI()
 
 DATA_FOLDER = os.getenv('DATA_FOLDER', '/data')
 META_FILE = os.getenv('META_FILE', 'meta.json')
+JP_MODEL_1 = 'ja-JP-AoiNeural'
+JP_MODEL_2 = 'ja-JP-MayuNeural'
+JP_MODEL_3 = 'ja-JP-DaichiNeural'
+GPT_MODEL = 'gpt-4'
 PLAYBACK_ORDER = [
-    'ja-JP-AoiNeural',
-    'ja-JP-MayuNeural',
-    'ja-JP-DaichiNeural',
+    JP_MODEL_1,
+    JP_MODEL_2,
+    JP_MODEL_3,
     'en',
     'zh'
 ]
+
+conn = sqlite3.connect(os.path.join(DATA_FOLDER, "meta.db"))
+META_TABLE = 'sentences'
+db_cursor = conn.cursor()
+db_cursor.execute(f'''CREATE TABLE IF NOT EXISTS {META_TABLE} (
+    hash TEXT PRIMARY KEY,
+    count INTEGER,
+    timestamp INTEGER
+)''')
 
 service_region = os.getenv('REGION', 'japaneast')
 speech_key = os.getenv('AZURE_SERVICE_TOKEN')
@@ -29,7 +47,7 @@ jp_speech_config = speechsdk.SpeechConfig(
 )
 audio_config = speechsdk.audio.AudioOutputConfig(use_default_speaker=True)
 
-jp_speech_config.speech_synthesis_voice_name = 'ja-JP-AoiNeural'
+jp_speech_config.speech_synthesis_voice_name = JP_MODEL_1
 jp_speech_synthesizer = speechsdk.SpeechSynthesizer(
     speech_config=jp_speech_config,
     audio_config=audio_config,
@@ -108,12 +126,7 @@ def explain_grammar(text: str) -> str:
 
 def translate(text: str, context_messages: list) -> str:
     resp = client.chat.completions.create(
-        # model="gpt-3.5-turbo",
-        # model='gpt-3.5-turbo-1106',
-        model='gpt-4',
-        # model='gpt-3.5-turbo-16k',
-        # model="gpt-3.5-turbo-0613",
-        # model="gpt-3.5-turbo-16k-0613",
+        model=GPT_MODEL,
         messages=context_messages + [{"role": "user", "content": text}],
     )
     last_resp = json.loads(resp.model_dump_json())['choices'][0]['message']['content']
@@ -138,9 +151,24 @@ def save(text: str, en_text: str, zh_text: str, wav_data, explain, reading):
         'explain': explain,
         'reading': reading,
     }
-    print(meta_info)
+
+    # update meta db
+    try:
+        with sqlite3.connect(os.path.join(DATA_FOLDER, "meta.db")) as conn:
+            db_cursor = conn.cursor()
+            db_cursor.execute(
+                f"INSERT INTO {META_TABLE} (hash, count, timestamp) VALUES (?, ?, ?)",
+                (text_hash, 0, int(time.time()))
+            )
+            conn.commit()
+    except IntegrityError:
+        print('sentence duplicated')
+        return {"error": "sentence duplicated"}
+
     with open(os.path.join(DATA_FOLDER, META_FILE), 'a') as fout:
         fout.write(json.dumps(meta_info, ensure_ascii=False) + '\n')
+
+    print(meta_info)
     return meta_info
 
 
@@ -184,7 +212,7 @@ def generate(text):
 
     jp1_ssml_string = f"""
     <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
-    <voice name='ja-JP-AoiNeural' style='cheerful'>
+    <voice name='{JP_MODEL_1}' style='cheerful'>
         <prosody rate='-10%'>
             {text}
         </prosody>
@@ -194,7 +222,7 @@ def generate(text):
 
     jp2_ssml_string = f"""
     <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
-    <voice name='ja-JP-MayuNeural'>
+    <voice name='{JP_MODEL_2}'>
         <prosody rate='-10%'>
             {text}
         </prosody>
@@ -204,28 +232,21 @@ def generate(text):
 
     jp3_ssml_string = f"""
     <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
-    <voice name='ja-JP-DaichiNeural'>
+    <voice name='{JP_MODEL_3}'>
         {text}
     </voice>
     </speak>
     """
 
     wav_data = [
-        ('ja-JP-AoiNeural', tts(jp1_ssml_string, jp_speech_synthesizer, ssml=True)),
-        ('ja-JP-MayuNeural', tts(jp2_ssml_string, jp_speech_synthesizer, ssml=True)),
-        ('ja-JP-DaichiNeural', tts(jp3_ssml_string, jp_speech_synthesizer, ssml=True)),
+        (JP_MODEL_1, tts(jp1_ssml_string, jp_speech_synthesizer, ssml=True)),
+        (JP_MODEL_2, tts(jp2_ssml_string, jp_speech_synthesizer, ssml=True)),
+        (JP_MODEL_3, tts(jp3_ssml_string, jp_speech_synthesizer, ssml=True)),
         ('en', tts(en_text, en_speech_synthesizer)),
         ('zh', tts(zh_text, zh_speech_synthesizer)),
     ]
     meta = save(text, en_text, zh_text, wav_data, explain, reading)
     return meta
-
-
-def generate_empty_wav(num_frames=4):
-    sample_rate = 44100
-    num_frames = 2 * sample_rate
-    empty_data = b"\x00" * num_frames
-    return empty_data
 
 
 def concatenate_wavs(text_hash):
@@ -237,6 +258,56 @@ def concatenate_wavs(text_hash):
             sample_rate = w.getframerate()
             data.append([w.getparams(), w.readframes(w.getnframes())])
     return data, sample_rate
+
+
+def encode_audio_string(hash_text):
+    data, sample_rate = concatenate_wavs(hash_text)
+
+    pause_frames = 2 * sample_rate
+    pause_data = b"\x00" * pause_frames
+    wav_binary = io.BytesIO(b'')
+    with wave.open(wav_binary, 'wb') as fout:
+        fout.setparams(data[0][0])
+        for i in range(len(data)):
+            fout.writeframes(data[i][1])
+            fout.writeframes(pause_data)
+    audio_base64 = base64.b64encode(wav_binary.getvalue()).decode("ascii")
+    return f"data:audio/wav;base64,{audio_base64}"
+
+
+def remove_sentence(hash_text):
+    with sqlite3.connect(os.path.join(DATA_FOLDER, "meta.db")) as conn:
+        db_cursor = conn.cursor()
+        db_cursor.execute(f"DELETE FROM {META_TABLE} WHERE hash = ?", (hash_text, ))
+        conn.commit()
+
+
+def get_single_phrase(sort_type: str):
+    with sqlite3.connect(os.path.join(DATA_FOLDER, "meta.db")) as conn:
+        db_cursor = conn.cursor()
+        if sort_type == 'freq':
+            text_hash, _, _ = db_cursor.execute(
+                f"SELECT * FROM {META_TABLE} ORDER BY count LIMIT 1;"
+            ).fetchone()
+        elif sort_type == 'time':
+            text_hash, _, _ = db_cursor.execute(
+                f"SELECT * FROM {META_TABLE} ORDER BY timestamp LIMIT 1;"
+            ).fetchone()
+        else:
+            text_hash, _, _ = db_cursor.execute(
+                f"SELECT * FROM {META_TABLE} ORDER BY RANDOM() LIMIT 1;"
+            ).fetchone()
+        db_cursor.execute(
+            f"UPDATE {META_TABLE} SET count = count + 1 WHERE hash = ?",
+            (text_hash, )
+        )
+        conn.commit()
+    with open(os.path.join(DATA_FOLDER, META_FILE), 'r') as fin:
+        for row in fin:
+            meta = json.loads(row)
+            if meta['hash'] == text_hash:
+                return meta
+    return {}
 
 
 if __name__ == '__main__':
