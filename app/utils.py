@@ -83,12 +83,14 @@ GRAMMAR_PROMPT = [
     {
         "role": "system",
         "content": '''You're a language teacher who teaching user Japanese language,
-        explain the grammar from user input and add some examples. And add Kana readings for kanji words.
+        The user will give you the grammar point and example sentence.
+        Explain the grammar in Jpanese. And add more examples. Add Hiragana readings for kanji words.
+        Don't use Romaji.
         Use ** to emphasis the grammar point. Output with aesthetic markdown format.''',
     },
     {
         "role": "user",
-        "content": "そういう～",
+        "content": "Show me the usage of 「そういう」 in the sentence そういう行動は許せません。",
     },
     {
         "role": "assistant",
@@ -120,7 +122,10 @@ READING_PROMPT = [
 def explain_grammar(text: str) -> str:
     grammar_pattern = extract_grammar.search(text)
     if grammar_pattern is not None:
-        return translate(grammar_pattern.group(1), GRAMMAR_PROMPT)
+        return translate(
+            f"Show me the usage of 「{grammar_pattern.group(1)}」 in the sentence {text}",
+            GRAMMAR_PROMPT
+        )
     return ''
 
 
