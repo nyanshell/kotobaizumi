@@ -1,48 +1,521 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>言葉の泉</title>
-    <style>
-        body {
-            font-family: sans-serif;
-        }
-        .japanese {
-            font-size: 1.5em;
-            font-weight: bold;
-            margin-bottom: 0.5em;
-        }
-        .translation {
-            font-size: 1em;
-        }
-    </style>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-</head>
-<body>
-    <audio controls>
-        <source src="{{ audio_string }}" type="audio/wav">
-    </audio>
+{% extends "base.html" %}
 
-    {% for item in data %}
-        <div class="japanese">{{ item.ja_text }}</div>
-        <div class="japanese">{{ item.reading }}</div>
-        <div class="translation">翻訳:</div>
-        <ul>
-            <li>英語: {{ item.en_text }}</li>
-            <li>中国語: {{ item.cn_text }}</li>
-            <li>hash: {{ item.hash }}</li>
-        </ul>
-        <hr>
-    {% endfor %}
-
-    {% if data|length == 1 %}
-    <div class="explain">
-        {{ data[0].explain }}
+{% block content %}
+<!-- Tab Navigation -->
+<div class="mb-8">
+    <div class="border-b border-slate-200">
+        <nav class="flex space-x-8">
+            <button class="tab-button py-3 px-6 text-sm font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-800 hover:border-slate-300 transition-colors ui-active:border-primary-500 ui-active:text-primary-600" data-tab="review">Due for Review</button>
+            <button class="tab-button py-3 px-6 text-sm font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-800 hover:border-slate-300 transition-colors" data-tab="random">Random Practice</button>
+            <button class="tab-button py-3 px-6 text-sm font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-800 hover:border-slate-300 transition-colors" data-tab="all">All Sentences</button>
+        </nav>
     </div>
-    <script>
-        const explainElement = document.querySelector(".explain");
-        explainElement.innerHTML = marked.parse("## Explanation\n\n" + explainElement.textContent);
-    </script>
+
+    <!-- Review Tab -->
+    <div id="review-tab" class="tab-content pt-6 block">
+        <div class="bg-slate-50 rounded-xl p-6 mb-6 border border-slate-200">
+            <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                    <div class="flex items-center gap-3">
+                        <label for="review-count" class="text-sm font-medium text-slate-700">Number of sentences:</label>
+                        <input type="number" id="review-count" class="w-20 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent" min="1" max="50" value="10">
+                    </div>
+                    <div class="flex gap-3">
+                        <button onclick="loadSentences('review')" class="btn-primary px-4 py-2 text-white rounded-lg font-medium text-sm">Load Review Sentences</button>
+                        <button onclick="window.location.reload()" class="px-4 py-2 text-slate-600 bg-white border border-slate-300 rounded-lg font-medium text-sm hover:bg-slate-50 transition-colors">Refresh</button>
+                        <button onclick="loadPreviousPage('review')" class="px-4 py-2 text-slate-600 bg-white border border-slate-300 rounded-lg font-medium text-sm hover:bg-slate-50 transition-colors">Previous</button>
+                        <button onclick="loadNextPage('review')" class="px-4 py-2 text-slate-600 bg-white border border-slate-300 rounded-lg font-medium text-sm hover:bg-slate-50 transition-colors">Next</button>
+                    </div>
+                </div>
+                <a href="{{ url_for('generate') }}" class="btn-success px-4 py-2 text-white rounded-lg font-medium text-sm">Add New Sentence</a>
+            </div>
+        </div>
+        <div id="review-content"></div>
+    </div>
+
+    <!-- Random Tab -->
+    <div id="random-tab" class="tab-content pt-6 hidden">
+        <div class="bg-slate-50 rounded-xl p-6 mb-6 border border-slate-200">
+            <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                    <div class="flex items-center gap-3">
+                        <label for="random-count" class="text-sm font-medium text-slate-700">Number of sentences:</label>
+                        <input type="number" id="random-count" class="w-20 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent" min="1" max="10" value="1">
+                    </div>
+                    <div class="flex gap-3">
+                        <button onclick="loadSentences('random')" class="btn-primary px-4 py-2 text-white rounded-lg font-medium text-sm">Load Random Sentences</button>
+                        <button onclick="window.location.reload()" class="px-4 py-2 text-slate-600 bg-white border border-slate-300 rounded-lg font-medium text-sm hover:bg-slate-50 transition-colors">Refresh</button>
+                        <button onclick="loadPreviousPage('random')" class="px-4 py-2 text-slate-600 bg-white border border-slate-300 rounded-lg font-medium text-sm hover:bg-slate-50 transition-colors">Previous</button>
+                        <button onclick="loadNextPage('random')" class="px-4 py-2 text-slate-600 bg-white border border-slate-300 rounded-lg font-medium text-sm hover:bg-slate-50 transition-colors">Next</button>
+                    </div>
+                </div>
+                <a href="{{ url_for('generate') }}" class="btn-success px-4 py-2 text-white rounded-lg font-medium text-sm">Add New Sentence</a>
+            </div>
+        </div>
+        <div id="random-content"></div>
+    </div>
+
+    <!-- All Sentences Tab -->
+    <div id="all-tab" class="tab-content pt-6 hidden">
+        <div class="bg-slate-50 rounded-xl p-6 mb-6 border border-slate-200">
+            <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                    <div class="flex items-center gap-3">
+                        <label for="all-count" class="text-sm font-medium text-slate-700">Number of sentences:</label>
+                        <input type="number" id="all-count" class="w-20 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent" min="1" max="50" value="10">
+                    </div>
+                    <div class="flex gap-3">
+                        <button onclick="loadSentences('all')" class="btn-primary px-4 py-2 text-white rounded-lg font-medium text-sm">Load All Sentences</button>
+                        <button onclick="window.location.reload()" class="px-4 py-2 text-slate-600 bg-white border border-slate-300 rounded-lg font-medium text-sm hover:bg-slate-50 transition-colors">Refresh</button>
+                        <button onclick="loadPreviousPage('all')" class="px-4 py-2 text-slate-600 bg-white border border-slate-300 rounded-lg font-medium text-sm hover:bg-slate-50 transition-colors">Previous</button>
+                        <button onclick="loadNextPage('all')" class="px-4 py-2 text-slate-600 bg-white border border-slate-300 rounded-lg font-medium text-sm hover:bg-slate-50 transition-colors">Next</button>
+                    </div>
+                </div>
+                <a href="{{ url_for('generate') }}" class="btn-success px-4 py-2 text-white rounded-lg font-medium text-sm">Add New Sentence</a>
+            </div>
+        </div>
+        <div id="all-content"></div>
+    </div>
+</div>
+
+<!-- Tab and Audio Management -->
+<script>
+let currentTab = 'review';
+let currentAudio = null;
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const sortType = urlParams.get('sort') || 'review';
+    const count = urlParams.get('count') || getDefaultCount(sortType);
+    
+    // Set the active tab without causing any requests
+    currentTab = sortType;
+    setActiveTab(sortType);
+    
+    // Set the count input value
+    const countInput = document.getElementById(sortType + '-count');
+    if (countInput) {
+        countInput.value = count;
+    }
+    
+    // Move initial content to the active tab
+    moveInitialContentToActiveTab();
+});
+
+function getDefaultCount(tabType) {
+    switch(tabType) {
+        case 'review': return 10;
+        case 'random': return 1;
+        case 'all': return 10;
+        default: return 10;
+    }
+}
+
+function setActiveTab(tabName) {
+    // Remove active classes from all tabs and content
+    document.querySelectorAll('.tab-button').forEach(btn => {
+        btn.classList.remove('border-primary-500', 'text-primary-600');
+        btn.classList.add('border-transparent', 'text-slate-600');
+    });
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.add('hidden');
+        content.classList.remove('block');
+    });
+    
+    // Add active class to selected tab
+    const tabButton = document.querySelector(`[data-tab="${tabName}"]`);
+    if (tabButton) {
+        tabButton.classList.remove('border-transparent', 'text-slate-600');
+        tabButton.classList.add('border-primary-500', 'text-primary-600');
+    }
+    
+    const tabContent = document.getElementById(tabName + '-tab');
+    if (tabContent) {
+        tabContent.classList.remove('hidden');
+        tabContent.classList.add('block');
+    }
+    
+    currentTab = tabName;
+}
+
+function switchTab(tabName) {
+    setActiveTab(tabName);
+    
+    // Update URL without reloading and without causing additional requests
+    const count = document.getElementById(tabName + '-count').value;
+    const newUrl = `/?sort=${tabName}&count=${count}`;
+    window.history.replaceState({}, '', newUrl);
+}
+
+// Add click handlers for tab buttons
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.tab-button').forEach(button => {
+        button.addEventListener('click', function() {
+            const tabName = this.getAttribute('data-tab');
+            switchTab(tabName);
+        });
+    });
+});
+
+function loadSentences(tabType) {
+    const count = document.getElementById(tabType + '-count').value;
+    // Simple redirect - no AJAX to avoid infinite loops
+    window.location.href = `/?sort=${tabType}&count=${count}`;
+}
+
+function loadPreviousPage(tabType) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const currentPage = parseInt(urlParams.get('page') || '1');
+    const count = document.getElementById(tabType + '-count').value;
+    
+    if (currentPage > 1) {
+        window.location.href = `/?sort=${tabType}&count=${count}&page=${currentPage - 1}`;
+    }
+}
+
+function loadNextPage(tabType) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const currentPage = parseInt(urlParams.get('page') || '1');
+    const count = document.getElementById(tabType + '-count').value;
+    
+    window.location.href = `/?sort=${tabType}&count=${count}&page=${currentPage + 1}`;
+}
+
+function moveInitialContentToActiveTab() {
+    setTimeout(() => {
+        const initialContent = document.getElementById('initial-content');
+        const activeContainer = document.getElementById(currentTab + '-content');
+        
+        if (initialContent && activeContainer) {
+            // Move the content to the active tab
+            activeContainer.innerHTML = initialContent.innerHTML;
+            initialContent.style.display = 'none';
+            // Load audio stats and combined audio for the moved content
+            loadAllAudioStats();
+            loadAllCombinedAudio();
+        }
+    }, 100);
+}
+
+function createSentenceCard(item, showReview = false) {
+    const card = document.createElement('div');
+    card.className = 'bg-white border border-slate-200 rounded-xl p-6 mb-6 shadow-sm hover:shadow-md transition-shadow';
+    
+    card.innerHTML = `
+        <div class="border-b border-slate-100 pb-4 mb-4">
+            <div class="text-japanese text-slate-800 mb-2">${item.ja_text}</div>
+            <div class="text-reading">${item.reading}</div>
+        </div>
+        
+        <div class="mb-4">
+            <div class="text-sm font-medium text-slate-700 mb-2">Translations:</div>
+            <ul class="space-y-1 text-sm text-slate-600">
+                <li>English: ${item.en_text}</li>
+                <li>Chinese: ${item.cn_text}</li>
+                <li class="text-xs text-slate-400">ID: ${item.hash}</li>
+            </ul>
+        </div>
+        
+        ${item.last_played || item.play_count ? `
+        <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div class="text-sm font-medium text-blue-800 mb-1">Playback Stats:</div>
+            <div class="text-xs text-blue-600">
+                ${item.play_count ? `Played ${item.play_count} times` : 'Not played yet'}
+                ${item.last_played ? ` • Last played: ${new Date(item.last_played).toLocaleDateString()}` : ''}
+            </div>
+        </div>
+        ` : ''}
+        
+        ${item.explain ? `
+        <div class="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
+            <h3 class="text-green-800 font-medium mb-3">Combined Audio Playback</h3>
+            <audio controls class="w-full" id="combined-audio-${item.hash}">
+                <source src="" type="audio/wav">
+            </audio>
+        </div>
+        ` : ''}
+        
+        <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-4">
+            <div class="text-sm font-medium text-slate-700 mb-3">Play Individual Voices:</div>
+            <div class="flex flex-wrap gap-2 mb-3">
+                <button class="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-md transition-colors" onclick="playVoice('${item.hash}', 'ja-JP-AoiNeural')">Aoi</button>
+                <button class="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-md transition-colors" onclick="playVoice('${item.hash}', 'ja-JP-MayuNeural')">Mayu</button>
+                <button class="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-md transition-colors" onclick="playVoice('${item.hash}', 'ja-JP-DaichiNeural')">Daichi</button>
+                <button class="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-md transition-colors" onclick="playVoice('${item.hash}', 'en')">English</button>
+                <button class="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-medium rounded-md transition-colors" onclick="playVoice('${item.hash}', 'zh')">Chinese</button>
+            </div>
+            <div id="audio-stats-${item.hash}" class="text-xs text-slate-500"></div>
+        </div>
+        
+        
+        <div class="border-t border-slate-100 pt-4">
+            <button class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition-colors" onclick="deleteSentence('${item.hash}')">Delete</button>
+        </div>
+    `;
+    
+    // Load audio stats for this sentence
+    setTimeout(() => {
+        loadAudioStats(item.hash);
+        if (item.explain) {
+            loadCombinedAudio(item.hash);
+        }
+    }, 100);
+    
+    return card;
+}
+
+function submitReview(sentenceId, quality) {
+    fetch(`/review/${sentenceId}/${quality}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.result === 'success') {
+            // Show success message and reload page
+            showMessage('Review submitted successfully!', 'success');
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            showMessage('Error submitting review', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showMessage('Error submitting review', 'error');
+    });
+}
+
+function deleteSentence(hash) {
+    if (confirm('Are you sure you want to delete this sentence?')) {
+        fetch(`/delete/${hash}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.result === 'done!') {
+                showMessage('Sentence deleted successfully!', 'success');
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                showMessage('Error deleting sentence', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showMessage('Error deleting sentence', 'error');
+        });
+    }
+}
+
+function playVoice(hash, voiceName) {
+    // Stop current audio if playing
+    if (currentAudio) {
+        currentAudio.pause();
+        currentAudio = null;
+    }
+    
+    fetch(`/audio/${hash}/${voiceName}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.audio) {
+                currentAudio = new Audio(data.audio);
+                currentAudio.play().catch(error => {
+                    console.error('Error playing audio:', error);
+                    showMessage('Error playing audio', 'error');
+                });
+                // Refresh audio stats after playing
+                setTimeout(() => loadAudioStats(hash), 500);
+            } else {
+                showMessage('Audio not available', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showMessage('Error loading audio', 'error');
+        });
+}
+
+function loadAudioStats(hash) {
+    fetch(`/audio-stats/${hash}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.stats) {
+                displayAudioStats(hash, data.stats);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading audio stats:', error);
+        });
+}
+
+function displayAudioStats(hash, stats) {
+    const container = document.getElementById(`audio-stats-${hash}`);
+    if (!container) return;
+    
+    if (Object.keys(stats).length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    const voiceNames = {
+        'ja-JP-AoiNeural': 'Aoi',
+        'ja-JP-MayuNeural': 'Mayu', 
+        'ja-JP-DaichiNeural': 'Daichi',
+        'en': 'English',
+        'zh': 'Chinese'
+    };
+    
+    let html = '<div class="text-xs text-slate-500 mt-2"><strong>Play Stats:</strong><br>';
+    
+    for (const [voice, stat] of Object.entries(stats)) {
+        const displayName = voiceNames[voice] || voice;
+        const lastPlayed = new Date(stat.last_played).toLocaleDateString();
+        html += `${displayName}: ${stat.play_count} plays (last: ${lastPlayed})<br>`;
+    }
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function loadAllAudioStats() {
+    // Load stats for all visible sentences
+    document.querySelectorAll('[id^="audio-stats-"]').forEach(element => {
+        const hash = element.id.replace('audio-stats-', '');
+        loadAudioStats(hash);
+    });
+}
+
+function loadCombinedAudio(hash) {
+    // Load combined audio for sentences with grammar explanations
+    const audioElement = document.getElementById(`combined-audio-${hash}`);
+    if (audioElement) {
+        // Generate combined audio URL for this specific sentence
+        const combinedAudioUrl = `data:audio/wav;base64,${btoa('')}`; // Placeholder for now
+        // For now, we'll use the existing logic but need to modify the backend to support single sentence combined audio
+        // The current encode_audio_string function expects an array, so we need a new endpoint
+        fetch(`/combined-audio/${hash}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.audio) {
+                    audioElement.src = data.audio;
+                }
+            })
+            .catch(error => {
+                console.error('Error loading combined audio:', error);
+            });
+    }
+}
+
+function loadAllCombinedAudio() {
+    // Load combined audio for all sentences with explanations
+    document.querySelectorAll('[id^="combined-audio-"]').forEach(element => {
+        const hash = element.id.replace('combined-audio-', '');
+        loadCombinedAudio(hash);
+    });
+}
+
+function showMessage(message, type) {
+    // Create temporary message element
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `alert alert-${type === 'success' ? 'success' : 'error'}`;
+    messageDiv.style.position = 'fixed';
+    messageDiv.style.top = '20px';
+    messageDiv.style.right = '20px';
+    messageDiv.style.zIndex = '1000';
+    messageDiv.style.maxWidth = '300px';
+    messageDiv.textContent = message;
+    
+    document.body.appendChild(messageDiv);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        if (messageDiv.parentNode) {
+            messageDiv.parentNode.removeChild(messageDiv);
+        }
+    }, 3000);
+}
+</script>
+
+
+<div id="initial-content">
+    {% if not data %}
+    <div class="text-center py-16">
+        <div class="max-w-md mx-auto">
+            <h3 class="text-xl font-medium text-slate-700 mb-4">No sentences available</h3>
+            <p class="text-slate-500 mb-6">Get started by adding your first sentence!</p>
+            <a href="{{ url_for('generate') }}" class="btn-primary px-6 py-3 text-white rounded-lg font-medium">Add New Sentence</a>
+        </div>
+    </div>
+    {% else %}
+    {% for item in data %}
+        <div class="bg-white border border-slate-200 rounded-xl p-6 mb-6 shadow-sm hover:shadow-md transition-shadow">
+            <div class="border-b border-slate-100 pb-4 mb-4">
+                <div class="text-japanese text-slate-800 mb-2">{{ item.ja_text }}</div>
+                <div class="text-reading">{{ item.reading }}</div>
+            </div>
+            
+            <div class="mb-4">
+                <div class="text-sm font-medium text-slate-700 mb-2">Translations:</div>
+                <ul class="space-y-1 text-sm text-slate-600">
+                    <li>English: {{ item.en_text }}</li>
+                    <li>Chinese: {{ item.cn_text }}</li>
+                    <li class="text-xs text-slate-400">ID: {{ item.hash }}</li>
+                </ul>
+            </div>
+            
+            {% if item.last_played or item.play_count %}
+            <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div class="text-sm font-medium text-blue-800 mb-1">Playback Stats:</div>
+                <div class="text-xs text-blue-600">
+                    {% if item.play_count %}Played {{ item.play_count }} times{% else %}Not played yet{% endif %}
+                    {% if item.last_played %} • Last played: {{ item.last_played.strftime('%m/%d/%Y') if item.last_played else '' }}{% endif %}
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if item.explain %}
+            <div class="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
+                <h3 class="text-green-800 font-medium mb-3">Combined Audio Playback</h3>
+                <audio controls class="w-full" id="combined-audio-{{ item.hash }}">
+                    <source src="" type="audio/wav">
+                </audio>
+            </div>
+            {% endif %}
+            
+            <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-4">
+                <div class="text-sm font-medium text-slate-700 mb-3">Play Individual Voices:</div>
+                <div class="flex flex-wrap gap-2 mb-3">
+                    <button class="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-md transition-colors" onclick="playVoice('{{ item.hash }}', 'ja-JP-AoiNeural')">Aoi</button>
+                    <button class="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-md transition-colors" onclick="playVoice('{{ item.hash }}', 'ja-JP-MayuNeural')">Mayu</button>
+                    <button class="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-md transition-colors" onclick="playVoice('{{ item.hash }}', 'ja-JP-DaichiNeural')">Daichi</button>
+                    <button class="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-md transition-colors" onclick="playVoice('{{ item.hash }}', 'en')">English</button>
+                    <button class="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-medium rounded-md transition-colors" onclick="playVoice('{{ item.hash }}', 'zh')">Chinese</button>
+                </div>
+                <div id="audio-stats-{{ item.hash }}" class="text-xs text-slate-500"></div>
+            </div>
+            
+            
+            <div class="border-t border-slate-100 pt-4">
+                <button class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition-colors" onclick="deleteSentence('{{ item.hash }}')">Delete</button>
+            </div>
+        </div>
+    {% endfor %}
     {% endif %}
-</body>
-</html>
+</div>
+
+{% if data|length == 1 and data[0].explain %}
+<div class="bg-blue-50 border border-blue-200 rounded-xl p-6 border-l-4 border-l-blue-500">
+    <div id="explanation-content" class="prose prose-sm max-w-none text-slate-700"></div>
+</div>
+<script>
+    const explainElement = document.getElementById("explanation-content");
+    explainElement.innerHTML = marked.parse("## Grammar Explanation\n\n" + {{ data[0].explain|tojson }});
+</script>
+{% endif %}
+
+{% endblock %}

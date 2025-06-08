@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block page_title %}Generate Sentence - 言葉の泉{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
+        <div class="border-b border-slate-100 pb-6 mb-8">
+            <h2 class="text-2xl font-bold text-slate-800 mb-2">Generate New Sentence</h2>
+            <p class="text-slate-600">Create a new sentence with translations and grammar explanations</p>
+        </div>
+
+        <form method="POST" class="space-y-6">
+            <div>
+                <label for="text" class="block text-sm font-medium text-slate-700 mb-3">Japanese Text:</label>
+                <textarea 
+                    id="text" 
+                    name="text" 
+                    placeholder="Enter Japanese sentence here... Use {{grammar}} to mark grammar points for explanation" 
+                    required 
+                    rows="5"
+                    class="w-full px-4 py-3 border border-slate-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                ></textarea>
+                <div class="mt-3 p-4 bg-blue-50 border border-blue-200 rounded-lg border-l-4 border-l-blue-500">
+                    <p class="text-sm text-blue-800">
+                        <span class="font-medium">Example:</span> 新学年を迎える{{にあたって}}、私たちは新しい計画を立てました。
+                    </p>
+                </div>
+            </div>
+            
+            <div class="flex flex-col sm:flex-row gap-4 pt-6 border-t border-slate-100">
+                <button type="submit" id="generate-button" class="btn-primary px-6 py-3 text-white rounded-lg font-medium">
+                    <span id="generate-text">Generate Sentence</span>
+                    <span id="generate-loading" class="hidden">
+                        <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Generating...
+                    </span>
+                </button>
+                <a href="{{ url_for('index') }}" class="px-6 py-3 text-slate-600 bg-white border border-slate-300 rounded-lg font-medium text-center hover:bg-slate-50 transition-colors">Cancel</a>
+            </div>
+        </form>
+    </div>
+
+    <div class="mt-8 bg-slate-50 border border-slate-200 rounded-xl p-6">
+        <h3 class="text-lg font-medium text-slate-800 mb-6">Instructions</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-white border border-slate-200 rounded-lg p-4 border-l-4 border-l-green-500">
+                <h4 class="font-medium text-green-700 mb-2">Input Format</h4>
+                <p class="text-sm text-slate-600 leading-relaxed">Enter your Japanese sentence in the text area above</p>
+            </div>
+            <div class="bg-white border border-slate-200 rounded-lg p-4 border-l-4 border-l-red-500">
+                <h4 class="font-medium text-red-700 mb-2">Grammar Marking</h4>
+                <p class="text-sm text-slate-600 leading-relaxed">Mark grammar points with double curly braces: <code class="bg-slate-100 px-1 py-0.5 rounded text-xs">{{grammar_point}}</code></p>
+            </div>
+            <div class="bg-white border border-slate-200 rounded-lg p-4 border-l-4 border-l-orange-500">
+                <h4 class="font-medium text-orange-700 mb-2">AI Processing</h4>
+                <p class="text-sm text-slate-600 leading-relaxed">The system will generate translations, readings, and explanations</p>
+            </div>
+            <div class="bg-white border border-slate-200 rounded-lg p-4 border-l-4 border-l-purple-500">
+                <h4 class="font-medium text-purple-700 mb-2">Review & Save</h4>
+                <p class="text-sm text-slate-600 leading-relaxed">You'll be able to review and edit before saving to your collection</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Handle generate button loading state
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const generateButton = document.getElementById('generate-button');
+    const generateText = document.getElementById('generate-text');
+    const generateLoading = document.getElementById('generate-loading');
+    
+    if (form && generateButton) {
+        form.addEventListener('submit', function(e) {
+            // Show loading state
+            generateButton.disabled = true;
+            generateText.classList.add('hidden');
+            generateLoading.classList.remove('hidden');
+            generateButton.classList.add('opacity-75', 'cursor-not-allowed');
+        });
+    }
+});
+</script>
+{% endblock %}

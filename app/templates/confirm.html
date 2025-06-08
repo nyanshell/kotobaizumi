@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block page_title %}Confirm Sentence - 言葉の泉{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    {% if saved %}
+    <!-- Saved Sentence Display -->
+    <div class="bg-white border border-slate-200 rounded-xl p-8 shadow-sm max-w-4xl mx-auto">
+        <div class="border-b border-slate-100 pb-6 mb-8">
+            <h2 class="text-2xl font-bold text-green-700 mb-2">✓ Sentence Saved Successfully!</h2>
+            <p class="text-slate-600">Your sentence has been saved and is ready for review</p>
+        </div>
+        
+        <div class="bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 rounded-xl p-6 mb-6">
+            <div class="border-b border-slate-200 pb-4 mb-4">
+                <div class="text-japanese text-slate-800 mb-2">{{ sentence_data.ja_text }}</div>
+                <div class="text-reading">{{ sentence_data.reading }}</div>
+            </div>
+            
+            <div class="mb-4">
+                <div class="text-sm font-medium text-slate-700 mb-2">Translations:</div>
+                <ul class="space-y-1 text-sm text-slate-600">
+                    <li>English: {{ sentence_data.en_text }}</li>
+                    <li>Chinese: {{ sentence_data.cn_text }}</li>
+                </ul>
+            </div>
+            
+            {% if sentence_data.explain %}
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 border-l-4 border-l-blue-500">
+                <h4 class="font-medium text-blue-800 mb-2">Grammar Explanation:</h4>
+                <div class="prose prose-sm max-w-none text-blue-700" id="saved-explanation"></div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="flex flex-col sm:flex-row gap-4 pt-6 border-t border-slate-100">
+            <a href="{{ url_for('index') }}" class="btn-primary px-6 py-3 text-white rounded-lg font-medium text-center">View All Sentences</a>
+            <a href="{{ url_for('generate') }}" class="px-6 py-3 text-slate-600 bg-white border border-slate-300 rounded-lg font-medium text-center hover:bg-slate-50 transition-colors">Add Another Sentence</a>
+        </div>
+    </div>
+    {% else %}
+    <!-- Edit Form -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div class="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
+            <div class="border-b border-slate-100 pb-6 mb-8">
+                <h2 class="text-2xl font-bold text-slate-800 mb-2">Review and Confirm</h2>
+                <p class="text-slate-600">Review the generated content and make any necessary edits before saving</p>
+            </div>
+
+            <form method="POST" action="{{ url_for('confirm') }}" class="space-y-6">
+                <input type="hidden" name="action" value="save">
+                <div>
+                    <label for="ja_text" class="block text-sm font-medium text-slate-700 mb-2">Japanese Text:</label>
+                    <input type="text" id="ja_text" name="ja_text" value="{{ sentence_data.ja_text }}" required 
+                           class="w-full px-4 py-3 border border-slate-300 rounded-lg text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                </div>
+                
+                <div>
+                    <label for="reading" class="block text-sm font-medium text-slate-700 mb-2">Reading (with furigana):</label>
+                    <input type="text" id="reading" name="reading" value="{{ sentence_data.reading }}" required 
+                           class="w-full px-4 py-3 border border-slate-300 rounded-lg text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                </div>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label for="en_text" class="block text-sm font-medium text-slate-700 mb-2">English Translation:</label>
+                        <input type="text" id="en_text" name="en_text" value="{{ sentence_data.en_text }}" required 
+                               class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                    </div>
+                    
+                    <div>
+                        <label for="cn_text" class="block text-sm font-medium text-slate-700 mb-2">Chinese Translation:</label>
+                        <input type="text" id="cn_text" name="cn_text" value="{{ sentence_data.cn_text }}" required 
+                               class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                    </div>
+                </div>
+                
+                <div>
+                    <label for="explain" class="block text-sm font-medium text-slate-700 mb-2">Grammar Explanation:</label>
+                    <textarea id="explain" name="explain" rows="8" 
+                              class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none">{{ sentence_data.explain }}</textarea>
+                </div>
+                
+                <div class="flex flex-col sm:flex-row gap-4 pt-6 border-t border-slate-100">
+                    <button type="submit" name="action" value="save" id="save-button" class="btn-success px-6 py-3 text-white rounded-lg font-medium">
+                        <span id="save-text">Save Sentence</span>
+                        <span id="save-loading" class="hidden">
+                            <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Saving...
+                        </span>
+                    </button>
+                    <button type="submit" name="action" value="cancel" class="px-6 py-3 text-slate-600 bg-white border border-slate-300 rounded-lg font-medium hover:bg-slate-50 transition-colors">Cancel</button>
+                    <a href="{{ url_for('generate') }}" class="px-6 py-3 text-slate-600 bg-white border border-slate-300 rounded-lg font-medium text-center hover:bg-slate-50 transition-colors">Back to Edit</a>
+                </div>
+            </form>
+        </div>
+
+        <!-- Live Preview -->
+        <div class="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
+            <div class="border-b border-slate-100 pb-6 mb-8">
+                <h3 class="text-xl font-bold text-slate-800">Live Preview</h3>
+            </div>
+            
+            <div class="bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 rounded-xl p-6 mb-6">
+                <div class="border-b border-slate-200 pb-4 mb-4">
+                    <div class="text-japanese text-slate-800 mb-2" id="preview-ja">{{ sentence_data.ja_text }}</div>
+                    <div class="text-reading" id="preview-reading">{{ sentence_data.reading }}</div>
+                </div>
+                
+                <div class="mb-4">
+                    <div class="text-sm font-medium text-slate-700 mb-2">Translations:</div>
+                    <ul class="space-y-1 text-sm text-slate-600">
+                        <li>English: <span id="preview-en">{{ sentence_data.en_text }}</span></li>
+                        <li>Chinese: <span id="preview-cn">{{ sentence_data.cn_text }}</span></li>
+                    </ul>
+                </div>
+                
+                {% if sentence_data.explain %}
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 border-l-4 border-l-blue-500">
+                    <h4 class="font-medium text-blue-800 mb-2">Grammar Explanation:</h4>
+                    <div id="explanation-preview" class="prose prose-sm max-w-none text-blue-700"></div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Live preview updates
+function updatePreview() {
+    document.getElementById('preview-ja').textContent = document.getElementById('ja_text').value;
+    document.getElementById('preview-reading').textContent = document.getElementById('reading').value;
+    document.getElementById('preview-en').textContent = document.getElementById('en_text').value;
+    document.getElementById('preview-cn').textContent = document.getElementById('cn_text').value;
+    
+    const explainText = document.getElementById('explain').value;
+    if (explainText && document.getElementById('explanation-preview')) {
+        document.getElementById('explanation-preview').innerHTML = marked.parse(explainText);
+    }
+}
+
+// Add event listeners for live updates
+document.addEventListener('DOMContentLoaded', function() {
+    {% if not saved %}
+    const inputs = ['ja_text', 'reading', 'en_text', 'cn_text', 'explain'];
+    inputs.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.addEventListener('input', updatePreview);
+        }
+    });
+    
+    // Initial preview update
+    updatePreview();
+    
+    {% if sentence_data.explain %}
+    // Initial explanation rendering
+    const explainElement = document.getElementById("explanation-preview");
+    if (explainElement) {
+        explainElement.innerHTML = marked.parse("{{ sentence_data.explain|replace('\n', '\\n')|replace('\r', '\\r')|replace('"', '\\"') }}");
+    }
+    {% endif %}
+    {% else %}
+    // Handle saved sentence explanation rendering
+    {% if sentence_data.explain %}
+    const savedExplainElement = document.getElementById("saved-explanation");
+    if (savedExplainElement) {
+        savedExplainElement.innerHTML = marked.parse("{{ sentence_data.explain|replace('\n', '\\n')|replace('\r', '\\r')|replace('"', '\\"') }}");
+    }
+    {% endif %}
+    {% endif %}
+    
+    {% if not saved %}
+    // Handle save button loading state
+    const form = document.querySelector('form');
+    const saveButton = document.getElementById('save-button');
+    const saveText = document.getElementById('save-text');
+    const saveLoading = document.getElementById('save-loading');
+    
+    if (form && saveButton) {
+        // Ensure action is set when save button is clicked
+        saveButton.addEventListener('click', function() {
+            const actionInput = form.querySelector('input[name="action"]');
+            if (actionInput) {
+                actionInput.value = 'save';
+            }
+        });
+        
+        form.addEventListener('submit', function(e) {
+            const action = e.submitter?.value || form.querySelector('input[name="action"]')?.value;
+            if (action === 'save') {
+                // Show loading state
+                saveButton.disabled = true;
+                saveText.classList.add('hidden');
+                saveLoading.classList.remove('hidden');
+                saveButton.classList.add('opacity-75', 'cursor-not-allowed');
+            }
+        });
+    }
+    {% endif %}
+});
+</script>
+{% endblock %}
