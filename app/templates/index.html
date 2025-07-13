@@ -88,17 +88,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
     const sortType = urlParams.get('sort') || 'review';
     const count = urlParams.get('count') || getDefaultCount(sortType);
-    
+
     // Set the active tab without causing any requests
     currentTab = sortType;
     setActiveTab(sortType);
-    
+
     // Set the count input value
     const countInput = document.getElementById(sortType + '-count');
     if (countInput) {
         countInput.value = count;
     }
-    
+
     // Move initial content to the active tab
     moveInitialContentToActiveTab();
 });
@@ -122,26 +122,26 @@ function setActiveTab(tabName) {
         content.classList.add('hidden');
         content.classList.remove('block');
     });
-    
+
     // Add active class to selected tab
     const tabButton = document.querySelector(`[data-tab="${tabName}"]`);
     if (tabButton) {
         tabButton.classList.remove('border-transparent', 'text-slate-600');
         tabButton.classList.add('border-primary-500', 'text-primary-600');
     }
-    
+
     const tabContent = document.getElementById(tabName + '-tab');
     if (tabContent) {
         tabContent.classList.remove('hidden');
         tabContent.classList.add('block');
     }
-    
+
     currentTab = tabName;
 }
 
 function switchTab(tabName) {
     setActiveTab(tabName);
-    
+
     // Update URL without reloading and without causing additional requests
     const count = document.getElementById(tabName + '-count').value;
     const newUrl = `/?sort=${tabName}&count=${count}`;
@@ -168,7 +168,7 @@ function loadPreviousPage(tabType) {
     const urlParams = new URLSearchParams(window.location.search);
     const currentPage = parseInt(urlParams.get('page') || '1');
     const count = document.getElementById(tabType + '-count').value;
-    
+
     if (currentPage > 1) {
         window.location.href = `/?sort=${tabType}&count=${count}&page=${currentPage - 1}`;
     }
@@ -178,7 +178,7 @@ function loadNextPage(tabType) {
     const urlParams = new URLSearchParams(window.location.search);
     const currentPage = parseInt(urlParams.get('page') || '1');
     const count = document.getElementById(tabType + '-count').value;
-    
+
     window.location.href = `/?sort=${tabType}&count=${count}&page=${currentPage + 1}`;
 }
 
@@ -186,7 +186,7 @@ function moveInitialContentToActiveTab() {
     setTimeout(() => {
         const initialContent = document.getElementById('initial-content');
         const activeContainer = document.getElementById(currentTab + '-content');
-        
+
         if (initialContent && activeContainer) {
             // Move the content to the active tab
             activeContainer.innerHTML = initialContent.innerHTML;
@@ -201,13 +201,13 @@ function moveInitialContentToActiveTab() {
 function createSentenceCard(item, showReview = false) {
     const card = document.createElement('div');
     card.className = 'bg-white border border-slate-200 rounded-xl p-6 mb-6 shadow-sm hover:shadow-md transition-shadow';
-    
+
     card.innerHTML = `
         <div class="border-b border-slate-100 pb-4 mb-4">
             <div class="text-japanese text-slate-800 mb-2">${item.ja_text}</div>
             <div class="text-reading">${item.reading}</div>
         </div>
-        
+
         <div class="mb-4">
             <div class="text-sm font-medium text-slate-700 mb-2">Translations:</div>
             <ul class="space-y-1 text-sm text-slate-600">
@@ -216,7 +216,7 @@ function createSentenceCard(item, showReview = false) {
                 <li class="text-xs text-slate-400">ID: ${item.hash}</li>
             </ul>
         </div>
-        
+
         ${item.last_played || item.play_count ? `
         <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <div class="text-sm font-medium text-blue-800 mb-1">Playback Stats:</div>
@@ -226,7 +226,7 @@ function createSentenceCard(item, showReview = false) {
             </div>
         </div>
         ` : ''}
-        
+
         ${item.explain ? `
         <div class="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
             <h3 class="text-green-800 font-medium mb-3">Combined Audio Playback</h3>
@@ -235,7 +235,7 @@ function createSentenceCard(item, showReview = false) {
             </audio>
         </div>
         ` : ''}
-        
+
         <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-4">
             <div class="text-sm font-medium text-slate-700 mb-3">Play Individual Voices:</div>
             <div class="flex flex-wrap gap-2 mb-3">
@@ -247,13 +247,13 @@ function createSentenceCard(item, showReview = false) {
             </div>
             <div id="audio-stats-${item.hash}" class="text-xs text-slate-500"></div>
         </div>
-        
-        
+
+
         <div class="border-t border-slate-100 pt-4">
             <button class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition-colors" onclick="deleteSentence('${item.hash}')">Delete</button>
         </div>
     `;
-    
+
     // Load audio stats for this sentence
     setTimeout(() => {
         loadAudioStats(item.hash);
@@ -261,7 +261,7 @@ function createSentenceCard(item, showReview = false) {
             loadCombinedAudio(item.hash);
         }
     }, 100);
-    
+
     return card;
 }
 
@@ -318,7 +318,7 @@ function playVoice(hash, voiceName) {
         currentAudio.pause();
         currentAudio = null;
     }
-    
+
     fetch(`/audio/${hash}/${voiceName}`)
         .then(response => response.json())
         .then(data => {
@@ -356,28 +356,28 @@ function loadAudioStats(hash) {
 function displayAudioStats(hash, stats) {
     const container = document.getElementById(`audio-stats-${hash}`);
     if (!container) return;
-    
+
     if (Object.keys(stats).length === 0) {
         container.innerHTML = '';
         return;
     }
-    
+
     const voiceNames = {
         'ja-JP-AoiNeural': 'Aoi',
-        'ja-JP-MayuNeural': 'Mayu', 
+        'ja-JP-MayuNeural': 'Mayu',
         'ja-JP-DaichiNeural': 'Daichi',
         'en': 'English',
         'zh': 'Chinese'
     };
-    
+
     let html = '<div class="text-xs text-slate-500 mt-2"><strong>Play Stats:</strong><br>';
-    
+
     for (const [voice, stat] of Object.entries(stats)) {
         const displayName = voiceNames[voice] || voice;
         const lastPlayed = new Date(stat.last_played).toLocaleDateString();
         html += `${displayName}: ${stat.play_count} plays (last: ${lastPlayed})<br>`;
     }
-    
+
     html += '</div>';
     container.innerHTML = html;
 }
@@ -394,10 +394,27 @@ function loadCombinedAudio(hash) {
     // Load combined audio for sentences with grammar explanations
     const audioElement = document.getElementById(`combined-audio-${hash}`);
     if (audioElement) {
-        // Generate combined audio URL for this specific sentence
-        const combinedAudioUrl = `data:audio/wav;base64,${btoa('')}`; // Placeholder for now
-        // For now, we'll use the existing logic but need to modify the backend to support single sentence combined audio
-        // The current encode_audio_string function expects an array, so we need a new endpoint
+        // Add event listener to track when combined audio is played
+        audioElement.addEventListener('play', function() {
+            fetch(`/track-combined-audio/${hash}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.result === 'success') {
+                    // Refresh audio stats after playing
+                    setTimeout(() => loadAudioStats(hash), 500);
+                }
+            })
+            .catch(error => {
+                console.error('Error tracking combined audio play:', error);
+            });
+        });
+
+        // Load the combined audio source
         fetch(`/combined-audio/${hash}`)
             .then(response => response.json())
             .then(data => {
@@ -429,9 +446,9 @@ function showMessage(message, type) {
     messageDiv.style.zIndex = '1000';
     messageDiv.style.maxWidth = '300px';
     messageDiv.textContent = message;
-    
+
     document.body.appendChild(messageDiv);
-    
+
     // Remove after 3 seconds
     setTimeout(() => {
         if (messageDiv.parentNode) {
@@ -458,7 +475,7 @@ function showMessage(message, type) {
                 <div class="text-japanese text-slate-800 mb-2">{{ item.ja_text }}</div>
                 <div class="text-reading">{{ item.reading }}</div>
             </div>
-            
+
             <div class="mb-4">
                 <div class="text-sm font-medium text-slate-700 mb-2">Translations:</div>
                 <ul class="space-y-1 text-sm text-slate-600">
@@ -467,17 +484,17 @@ function showMessage(message, type) {
                     <li class="text-xs text-slate-400">ID: {{ item.hash }}</li>
                 </ul>
             </div>
-            
+
             {% if item.last_played or item.play_count %}
             <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <div class="text-sm font-medium text-blue-800 mb-1">Playback Stats:</div>
                 <div class="text-xs text-blue-600">
                     {% if item.play_count %}Played {{ item.play_count }} times{% else %}Not played yet{% endif %}
-                    {% if item.last_played %} • Last played: {{ item.last_played.strftime('%m/%d/%Y') if item.last_played else '' }}{% endif %}
+                    {% if item.last_played %} • Last played: {{ item.last_played.strftime('%Y/%m/%d') if item.last_played else '' }}{% endif %}
                 </div>
             </div>
             {% endif %}
-            
+
             {% if item.explain %}
             <div class="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
                 <h3 class="text-green-800 font-medium mb-3">Combined Audio Playback</h3>
@@ -486,7 +503,7 @@ function showMessage(message, type) {
                 </audio>
             </div>
             {% endif %}
-            
+
             <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-4">
                 <div class="text-sm font-medium text-slate-700 mb-3">Play Individual Voices:</div>
                 <div class="flex flex-wrap gap-2 mb-3">
@@ -498,8 +515,8 @@ function showMessage(message, type) {
                 </div>
                 <div id="audio-stats-{{ item.hash }}" class="text-xs text-slate-500"></div>
             </div>
-            
-            
+
+
             <div class="border-t border-slate-100 pt-4">
                 <button class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition-colors" onclick="deleteSentence('{{ item.hash }}')">Delete</button>
             </div>

@@ -1,10 +1,7 @@
-"""Flask web application for Kotobaizumi language learning."""
-
 import json
 import logging
 import os
 
-from dotenv import load_dotenv
 from flask import Flask, flash, redirect, render_template, request, session, url_for
 from flask_login import (
     LoginManager,
@@ -14,9 +11,6 @@ from flask_login import (
     login_user,
     logout_user,
 )
-
-# Load environment variables
-load_dotenv()
 
 from app.database import SentenceManager, UserManager
 from app.utils import (
@@ -29,9 +23,9 @@ from app.utils import (
 )
 
 logger = logging.getLogger(__name__)
-
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "your-secret-key-change-this")
+
 
 @app.before_request
 def log_request():
@@ -40,7 +34,7 @@ def log_request():
     if request.method == "POST":
         print(f"Form data: {dict(request.form)}")
     print(f"Session keys: {list(session.keys()) if session else 'No session'}")
-    
+
     logger.info(f"=== REQUEST: {request.method} {request.path} ===")
     logger.info(f"User authenticated: {current_user.is_authenticated if hasattr(current_user, 'is_authenticated') else 'N/A'}")
     if request.method == "POST":
@@ -157,16 +151,12 @@ def generate():
 @app.route("/confirm", methods=["POST"])
 @login_required
 def confirm():
-    print("=== CONFIRM ROUTE START ===")
     logger.info("=== CONFIRM ROUTE START ===")
     action = request.form.get("action")
-    print(f"Action received: {action}")
-    print(f"Action is None: {action is None}")
-    print(f"Action == 'save': {action == 'save'}")
     logger.info(f"Action received: {action}")
     logger.info(f"Current user ID: {current_user.id}")
     logger.info(f"Form data keys: {list(request.form.keys())}")
-    
+
     # Log session contents
     logger.info(f"Session keys: {list(session.keys())}")
     has_pending = "pending_sentence" in session
@@ -176,19 +166,19 @@ def confirm():
     # Treat any POST with sentence data as save action if action is missing
     if action == "save" or (action is None and request.form.get("ja_text")):
         if action is None:
-            print("Action was None, but treating as save since ja_text is present")
+            logger.info("Action was None, but treating as save since ja_text is present")
         logger.info("Processing save action")
         sentence_data = session.get("pending_sentence")
         logger.info(f"Retrieved sentence_data: {sentence_data is not None}")
-        
+
         if sentence_data:
             logger.info(f"Original sentence_data keys: {list(sentence_data.keys()) if sentence_data else 'None'}")
-            
+
             # Allow user to edit the translations
             original_ja = sentence_data.get("ja_text", "")
             form_ja = request.form.get("ja_text", "")
             logger.info(f"JA text: original='{original_ja}', form='{form_ja}'")
-            
+
             sentence_data["ja_text"] = request.form.get(
                 "ja_text", sentence_data["ja_text"]
             )
@@ -204,7 +194,7 @@ def confirm():
             sentence_data["explain"] = request.form.get(
                 "explain", sentence_data["explain"]
             )
-            
+
             logger.info(f"Updated sentence_data: {sentence_data}")
 
             # Save the edited sentence data
@@ -212,7 +202,7 @@ def confirm():
                 logger.info("About to call save_generated_sentence")
                 result = save_generated_sentence(current_user.id, sentence_data)
                 logger.info(f"save_generated_sentence returned: {result}")
-                
+
                 if "error" not in result:
                     logger.info("Save successful, showing success page")
                     flash("Sentence saved successfully!")
@@ -301,6 +291,22 @@ def get_combined_audio(hash_text):
         return json.dumps({"audio": audio_data})
     else:
         return json.dumps({"result": "error"}), 404
+
+
+@app.route("/track-combined-audio/<string:hash_text>", methods=["POST"])
+@login_required
+def track_combined_audio_play(hash_text):
+    """Track when combined audio is played"""
+    # Verify the user owns this sentence
+    sentence = SentenceManager.get_sentence_by_hash(current_user.id, hash_text)
+    if not sentence:
+        return json.dumps({"result": "error"}), 404
+
+    # Track the play count for combined audio (use 'combined' as voice name)
+    SentenceManager.track_audio_play(sentence["id"], "combined")
+    SentenceManager.track_sentence_play(sentence["id"])
+
+    return json.dumps({"result": "success"})
 
 
 if __name__ == "__main__":
