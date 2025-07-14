@@ -55,7 +55,24 @@ en_speech_config = speechsdk.SpeechConfig(
 )
 en_speech_config.speech_synthesis_voice_name = "en-GB-MaisieNeural"
 en_speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=en_speech_config)
-extract_grammar = re.compile("{{(.+?)}}")
+extract_grammar = re.compile("{{(.*?)}}")
+
+
+def extract_grammar_pattern(text: str) -> tuple[str, str]:
+    """Extract grammar pattern from text with {{}} markers.
+
+    Returns:
+        tuple: (clean_text_without_markers, grammar_pattern_or_none)
+    """
+    match = extract_grammar.search(text)
+    if match:
+        grammar_pattern = match.group(1).strip()
+        # Reject empty patterns
+        if not grammar_pattern:
+            return text, None
+        clean_text = extract_grammar.sub(lambda m: m.group(1), text)
+        return clean_text, grammar_pattern
+    return text, None
 
 ZH_TRANSLATION_PROMPT = [
     {
@@ -146,22 +163,34 @@ def save_wav(file_name: str, data: bytes):
 def save_sentence_data(
     user_id: int, text: str, en_text: str, zh_text: str, wav_data, explain, reading
 ):
-    text_hash = hashlib.md5(text.encode("utf-8")).hexdigest()
+    # Check for empty grammar markers
+    if "{{" in text and "}}" in text:
+        # Extract grammar pattern and get clean text
+        clean_text, grammar_pattern = extract_grammar_pattern(text)
+        if "{{" in text and grammar_pattern is None:
+            return {"error": "Empty grammar markers {{}} are not allowed. Please provide a grammar pattern like {{pattern}}."}
+    else:
+        clean_text, grammar_pattern = extract_grammar_pattern(text)
+
+    # Use clean text for hashing and audio generation
+    text_hash = hashlib.md5(clean_text.encode("utf-8")).hexdigest()
     for name, wav in wav_data:
         save_wav(f"{text_hash}.{name}.wav", wav)
 
     success = SentenceManager.save_sentence(
-        user_id, text_hash, text, en_text, zh_text, reading, explain
+        user_id, text_hash, clean_text, en_text, zh_text, reading, explain, text, grammar_pattern
     )
 
     if success:
         return {
             "hash": text_hash,
-            "ja_text": text,
+            "ja_text": clean_text,
             "en_text": en_text,
             "cn_text": zh_text,
             "explain": explain,
             "reading": reading,
+            "rendered_text": text,
+            "grammar": grammar_pattern,
         }
     else:
         return {"error": "Failed to save sentence or sentence already exists"}

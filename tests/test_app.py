@@ -245,6 +245,62 @@ class TestTemplateRendering:
             assert "テスト文章".encode() in response.data
             assert b"Test sentence" in response.data
 
+    def test_grammar_highlighting_filter(self, app):
+        """Test the highlight_grammar Jinja2 filter."""
+        with app.app_context():
+            # Test basic grammar pattern highlighting
+            filter_func = app.jinja_env.filters['highlight_grammar']
+
+            # Test with grammar pattern
+            input_text = "新学年を迎える{{にあたって}}、計画を立てました。"
+            result = filter_func(input_text)
+            expected = '新学年を迎える<span class="bg-green-200 text-green-800 px-1 py-0.5 rounded font-medium">にあたって</span>、計画を立てました。'
+            assert result == expected
+
+            # Test with no grammar pattern
+            input_text_no_pattern = "普通の文章です。"
+            result_no_pattern = filter_func(input_text_no_pattern)
+            assert result_no_pattern == input_text_no_pattern
+
+            # Test with multiple patterns
+            input_multiple = "{{これは}}テスト{{文章}}です。"
+            result_multiple = filter_func(input_multiple)
+            expected_multiple = '<span class="bg-green-200 text-green-800 px-1 py-0.5 rounded font-medium">これは</span>テスト<span class="bg-green-200 text-green-800 px-1 py-0.5 rounded font-medium">文章</span>です。'
+            assert result_multiple == expected_multiple
+
+            # Test with empty/None input
+            assert filter_func(None) is None
+            assert filter_func("") == ""
+
+    @patch("app.app.get_phrases")
+    def test_index_with_grammar_patterns(self, mock_get_phrases, client, authenticated_user):
+        """Test index page renders grammar patterns with highlighting."""
+        mock_get_phrases.return_value = [
+            {
+                "id": 1,
+                "hash": "test_hash",
+                "ja_text": "新学年を迎えるにあたって、計画を立てました。",
+                "en_text": "We made new plans when welcoming the new school year.",
+                "cn_text": "迎接新学年时，我们制定了新计划。",
+                "reading": "しんがくねんをむかえるにあたって、けいかくをたてました。",
+                "explain": "「にあたって」は、何かを始める時や重要な場面で使う表現です。",
+                "rendered_text": "新学年を迎える{{にあたって}}、計画を立てました。",
+                "grammar": "にあたって",
+            }
+        ]
+
+        with patch("app.app.encode_audio_string") as mock_audio:
+            mock_audio.return_value = "data:audio/wav;base64,fake_data"
+
+            response = client.get("/")
+
+            assert response.status_code == 200
+            # Check that the grammar pattern is highlighted
+            assert b'bg-green-200 text-green-800' in response.data
+            assert 'にあたって'.encode() in response.data
+            # Check that grammar details button is present
+            assert b'Show Grammar Details' in response.data
+
 
 class TestErrorHandling:
     """Test cases for error handling and edge cases."""

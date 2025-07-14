@@ -8,6 +8,7 @@ from unittest.mock import patch
 from app.utils import (
     encode_audio_string,
     explain_grammar,
+    extract_grammar_pattern,
     generate_sentence_content,
     save_generated_sentence,
     translate,
@@ -66,6 +67,61 @@ class TestTranslationFunctions:
         assert result["reading"] == "Test reading"
         assert "wav_data" in result
         assert len(result["wav_data"]) == 5  # 3 JP + EN + ZH
+
+
+class TestGrammarFunctions:
+    """Test cases for grammar pattern extraction and processing."""
+
+    def test_extract_grammar_pattern_with_pattern(self):
+        """Test extracting grammar pattern from text with {{}} markers."""
+        input_text = "新学年を迎える{{にあたって}}、計画を立てました。"
+        clean_text, grammar = extract_grammar_pattern(input_text)
+
+        assert clean_text == "新学年を迎えるにあたって、計画を立てました。"
+        assert grammar == "にあたって"
+
+    def test_extract_grammar_pattern_no_pattern(self):
+        """Test extracting grammar pattern from text without {{}} markers."""
+        input_text = "普通の文章です。"
+        clean_text, grammar = extract_grammar_pattern(input_text)
+
+        assert clean_text == "普通の文章です。"
+        assert grammar is None
+
+    def test_extract_grammar_pattern_multiple_patterns(self):
+        """Test extracting grammar pattern from text with multiple {{}} markers."""
+        input_text = "{{これは}}テスト{{文章}}です。"
+        clean_text, grammar = extract_grammar_pattern(input_text)
+
+        # Should extract only the first pattern
+        assert clean_text == "これはテスト文章です。"
+        assert grammar == "これは"
+
+    def test_extract_grammar_pattern_empty_string(self):
+        """Test extracting grammar pattern from empty string."""
+        input_text = ""
+        clean_text, grammar = extract_grammar_pattern(input_text)
+
+        assert clean_text == ""
+        assert grammar is None
+
+    def test_extract_grammar_pattern_empty_markers(self):
+        """Test extracting grammar pattern from text with empty {{}} markers."""
+        input_text = "テスト{{}}文章です。"
+        clean_text, grammar = extract_grammar_pattern(input_text)
+
+        # Empty markers should be treated as no pattern found
+        assert clean_text == "テスト{{}}文章です。"
+        assert grammar is None
+
+    def test_extract_grammar_pattern_whitespace_only_markers(self):
+        """Test extracting grammar pattern from text with whitespace-only {{}} markers."""
+        input_text = "テスト{{  }}文章です。"
+        clean_text, grammar = extract_grammar_pattern(input_text)
+
+        # Whitespace-only markers should be treated as no pattern found
+        assert clean_text == "テスト{{  }}文章です。"
+        assert grammar is None
 
 
 class TestAudioFunctions:
