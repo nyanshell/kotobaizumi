@@ -35,6 +35,7 @@ OPENAI_API_KEY=<open-api-key>
 
 ## To-Do
 
+- Jump to the generated card after created.
 - Support Gemini for the grammar explain
 - Fix: memory graph, play time.
 - Add Azure's DrangonHD audio model.
