@@ -7,8 +7,8 @@ import logging
 import sys
 
 from app.database import UserManager, get_connection
+from app.utils import logger
 
-logger = logging.getLogger(__name__)
 
 
 def create_user(username, password=None):
@@ -238,9 +238,9 @@ def reset_user_progress(username):
         # Reset sentence progress
         conn.execute(
             """
-            UPDATE sentences 
-            SET last_reviewed = NULL, review_count = 0, ease_factor = 2.5, 
-                interval_days = 1, next_review = CURRENT_TIMESTAMP + INTERVAL 1 DAY 
+            UPDATE sentences
+            SET last_reviewed = NULL, review_count = 0, ease_factor = 2.5,
+                interval_days = 1, next_review = CURRENT_TIMESTAMP + INTERVAL 1 DAY
             WHERE user_id = ?
         """,
             [user_id],
@@ -249,7 +249,7 @@ def reset_user_progress(username):
         # Delete review history
         conn.execute(
             """
-            DELETE FROM review_history 
+            DELETE FROM review_history
             WHERE sentence_id IN (SELECT id FROM sentences WHERE user_id = ?)
         """,
             [user_id],

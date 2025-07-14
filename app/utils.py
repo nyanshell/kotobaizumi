@@ -2,7 +2,6 @@ import base64
 import hashlib
 import io
 import json
-import logging
 import os
 import re
 import wave
@@ -11,9 +10,7 @@ import azure.cognitiveservices.speech as speechsdk
 from openai import OpenAI
 
 from app.database import SentenceManager
-
-logger = logging.getLogger(__name__)
-
+from app.settings import logger
 
 client = OpenAI()
 

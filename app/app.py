@@ -1,8 +1,16 @@
 import json
-import logging
 import os
+import re
 
-from flask import Flask, flash, redirect, render_template, request, session, url_for
+from flask import (
+    Flask,
+    flash,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 from flask_login import (
     LoginManager,
     UserMixin,
@@ -21,25 +29,31 @@ from app.utils import (
     remove_sentence,
     save_generated_sentence,
 )
+from app.settings import logger
 
-logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "your-secret-key-change-this")
 
 
+@app.template_filter('highlight_grammar')
+def highlight_grammar_filter(text):
+    """Highlight grammar patterns in Japanese text"""
+    if not text:
+        return text
+    # Replace {{pattern}} with highlighted spans
+    pattern = re.compile(r'{{([^}]+)}}')
+    highlighted = pattern.sub(r'<span class="bg-green-200 text-green-800 px-1 py-0.5 rounded font-medium">\1</span>', text)
+    logger.debug(f"Highlighting grammar patterns in text: {text} -> {highlighted}")
+    return highlighted
+
+
 @app.before_request
 def log_request():
-    print(f"=== REQUEST: {request.method} {request.path} ===")
-    print(f"User authenticated: {current_user.is_authenticated if hasattr(current_user, 'is_authenticated') else 'N/A'}")
-    if request.method == "POST":
-        print(f"Form data: {dict(request.form)}")
-    print(f"Session keys: {list(session.keys()) if session else 'No session'}")
-
-    logger.info(f"=== REQUEST: {request.method} {request.path} ===")
+    logger.info(f"REQUEST: {request.method} {request.path}")
     logger.info(f"User authenticated: {current_user.is_authenticated if hasattr(current_user, 'is_authenticated') else 'N/A'}")
     if request.method == "POST":
         logger.info(f"Form data: {dict(request.form)}")
-    logger.info(f"Session keys: {list(session.keys()) if session else 'No session'}")
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -107,6 +121,8 @@ def index():
     phrase_meta = get_phrases(
         current_user.id, sort_type, return_count=return_count, offset=offset
     )
+    print(phrase_meta)
+    logger.debug(f"Phrase meta data retrieved: {phrase_meta}")
 
     if phrase_meta:
         audio_string = encode_audio_string(phrase_meta)

@@ -1,13 +1,10 @@
-"""Database operations for Kotobaizumi application."""
-
-import logging
 import os
 from pathlib import Path
 
 import bcrypt
 import duckdb
 
-logger = logging.getLogger(__name__)
+from app.settings import logger
 
 # Default to ./data directory relative to the project root
 DEFAULT_DATA_FOLDER = Path(__file__).parent.parent / "data"
@@ -49,6 +46,8 @@ def init_database() -> None:
             cn_text VARCHAR NOT NULL,
             reading VARCHAR NOT NULL,
             explanation VARCHAR NOT NULL,
+            rendered_text VARCHAR,
+            grammar VARCHAR,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_reviewed TIMESTAMP,
             review_count INTEGER DEFAULT 0,
@@ -61,15 +60,6 @@ def init_database() -> None:
         );
     """)
 
-    # Add columns if they don't exist (for existing databases)
-    try:
-        conn.execute("ALTER TABLE sentences ADD COLUMN last_played TIMESTAMP")
-    except Exception:
-        pass
-    try:
-        conn.execute("ALTER TABLE sentences ADD COLUMN play_count INTEGER DEFAULT 0")
-    except Exception:
-        pass
 
     # Review history for analytics
     conn.execute("""
@@ -161,6 +151,8 @@ class SentenceManager:
         cn_text: str,
         reading: str,
         explanation: str,
+        rendered_text: str,
+        grammar: str,
     ) -> bool:
         """Save a new sentence for a user."""
         conn = get_connection()
@@ -169,10 +161,10 @@ class SentenceManager:
             conn.execute(
                 """
                 INSERT INTO sentences
-                (user_id, hash, ja_text, en_text, cn_text, reading, explanation, next_review)
-                VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP + INTERVAL 1 DAY)
+                (user_id, hash, ja_text, en_text, cn_text, reading, explanation, next_review, rendered_text, grammar)
+                VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP + INTERVAL 1 DAY, ?, ?)
             """,
-                [user_id, hash_val, ja_text, en_text, cn_text, reading, explanation],
+                [user_id, hash_val, ja_text, en_text, cn_text, reading, explanation, rendered_text, grammar],
             )
 
             conn.close()
@@ -192,7 +184,7 @@ class SentenceManager:
         sentences = conn.execute(
             """
             SELECT id, hash, ja_text, en_text, cn_text, reading, explanation,
-                   review_count, ease_factor, interval_days, next_review, last_played, play_count
+                   review_count, ease_factor, interval_days, next_review, last_played, play_count, rendered_text, grammar
             FROM sentences
             WHERE user_id = ? AND (next_review IS NULL OR next_review <= CURRENT_TIMESTAMP)
             ORDER BY next_review ASC, created_at ASC
@@ -206,7 +198,7 @@ class SentenceManager:
             sentences = conn.execute(
                 """
                 SELECT id, hash, ja_text, en_text, cn_text, reading, explanation,
-                       review_count, ease_factor, interval_days, next_review, last_played, play_count
+                       review_count, ease_factor, interval_days, next_review, last_played, play_count, rendered_text, grammar
                 FROM sentences
                 WHERE user_id = ?
                 ORDER BY created_at DESC
@@ -225,13 +217,15 @@ class SentenceManager:
                 "en_text": s[3],
                 "cn_text": s[4],
                 "reading": s[5],
-                "explain": s[6],
+                "explanation": s[6],
                 "review_count": s[7],
                 "ease_factor": s[8],
                 "interval_days": s[9],
                 "next_review": s[10],
                 "last_played": s[11],
                 "play_count": s[12],
+                "rendered_text": s[13],
+                "grammar": s[14],
             }
             for s in sentences
         ]
@@ -244,8 +238,8 @@ class SentenceManager:
 
         sentences = conn.execute(
             """
-            SELECT id, hash, ja_text, en_text, cn_text, reading, explanation, last_played, play_count
-            FROM sentences 
+            SELECT id, hash, ja_text, en_text, cn_text, reading, explanation, last_played, play_count, rendered_text, grammar
+            FROM sentences
             WHERE user_id = ?
             ORDER BY RANDOM()
             LIMIT ? OFFSET ?
@@ -263,9 +257,11 @@ class SentenceManager:
                 "en_text": s[3],
                 "cn_text": s[4],
                 "reading": s[5],
-                "explain": s[6],
+                "explanation": s[6],
                 "last_played": s[7],
                 "play_count": s[8],
+                "rendered_text": s[9],
+                "grammar": s[10],
             }
             for s in sentences
         ]
@@ -279,8 +275,8 @@ class SentenceManager:
 
         sentences = conn.execute(
             """
-            SELECT id, hash, ja_text, en_text, cn_text, reading, explanation, last_played, play_count
-            FROM sentences 
+            SELECT id, hash, ja_text, en_text, cn_text, reading, explanation, last_played, play_count, rendered_text, grammar
+            FROM sentences
             WHERE user_id = ?
             ORDER BY created_at DESC
             LIMIT ? OFFSET ?
@@ -298,9 +294,11 @@ class SentenceManager:
                 "en_text": s[3],
                 "cn_text": s[4],
                 "reading": s[5],
-                "explain": s[6],
+                "explanation": s[6],
                 "last_played": s[7],
                 "play_count": s[8],
+                "rendered_text": s[9],
+                "grammar": s[10],
             }
             for s in sentences
         ]
@@ -317,7 +315,7 @@ class SentenceManager:
             # Get current sentence data
             sentence = conn.execute(
                 """
-                SELECT review_count, ease_factor, interval_days 
+                SELECT review_count, ease_factor, interval_days
                 FROM sentences WHERE id = ?
             """,
                 [sentence_id],
@@ -352,8 +350,8 @@ class SentenceManager:
             # Update database
             conn.execute(
                 """
-                UPDATE sentences 
-                SET last_reviewed = CURRENT_TIMESTAMP, review_count = ?, ease_factor = ?, 
+                UPDATE sentences
+                SET last_reviewed = CURRENT_TIMESTAMP, review_count = ?, ease_factor = ?,
                     interval_days = ?, next_review = CURRENT_TIMESTAMP + INTERVAL ? DAY
                 WHERE id = ?
             """,
@@ -369,7 +367,7 @@ class SentenceManager:
             # Record review history
             conn.execute(
                 """
-                INSERT INTO review_history (sentence_id, quality) 
+                INSERT INTO review_history (sentence_id, quality)
                 VALUES (?, ?)
             """,
                 [sentence_id, quality],
@@ -404,8 +402,8 @@ class SentenceManager:
         conn = get_connection()
         sentence = conn.execute(
             """
-            SELECT id, hash, ja_text, en_text, cn_text, reading, explanation, last_played, play_count
-            FROM sentences 
+            SELECT id, hash, ja_text, en_text, cn_text, reading, explanation, last_played, play_count, rendered_text, grammar
+            FROM sentences
             WHERE user_id = ? AND hash = ?
         """,
             [user_id, sentence_hash],
@@ -424,6 +422,8 @@ class SentenceManager:
                 "explanation": sentence[6],
                 "last_played": sentence[7],
                 "play_count": sentence[8],
+                "rendered_text": sentence[9],
+                "grammar": sentence[10],
             }
         return None
 
@@ -437,8 +437,8 @@ class SentenceManager:
                 """
                 INSERT INTO grammar_plays (sentence_id, voice_name, play_count, last_played)
                 VALUES (?, ?, 1, CURRENT_TIMESTAMP)
-                ON CONFLICT (sentence_id, voice_name) 
-                DO UPDATE SET 
+                ON CONFLICT (sentence_id, voice_name)
+                DO UPDATE SET
                     play_count = play_count + 1,
                     last_played = CURRENT_TIMESTAMP
             """,
@@ -476,7 +476,7 @@ class SentenceManager:
         try:
             conn.execute(
                 """
-                UPDATE sentences 
+                UPDATE sentences
                 SET play_count = COALESCE(play_count, 0) + 1,
                     last_played = CURRENT_TIMESTAMP
                 WHERE id = ?

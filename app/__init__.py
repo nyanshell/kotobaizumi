@@ -1,1 +1,0 @@
-"""Kotobaizumi application package."""
