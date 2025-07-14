@@ -194,17 +194,44 @@ function moveInitialContentToActiveTab() {
             // Load audio stats and combined audio for the moved content
             loadAllAudioStats();
             loadAllCombinedAudio();
+            loadAllGrammarExplanations();
         }
     }, 100);
+}
+
+function highlightGrammarPatterns(text) {
+    // Replace {{pattern}} with highlighted spans
+    const pattern = new RegExp('\\{\\{([^}]+)\\}\\}', 'g');
+    return text.replace(pattern, '<span class="bg-green-200 text-green-800 px-1 py-0.5 rounded font-medium">$1</span>');
+}
+
+function toggleGrammarExplanation(hash) {
+    const explanationDiv = document.getElementById(`grammar-explanation-${hash}`);
+    const toggleButton = document.getElementById(`grammar-toggle-${hash}`);
+
+    if (explanationDiv.classList.contains('hidden')) {
+        explanationDiv.classList.remove('hidden');
+        toggleButton.textContent = 'Hide Grammar Details';
+        toggleButton.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+        toggleButton.classList.add('bg-gray-500', 'hover:bg-gray-600');
+    } else {
+        explanationDiv.classList.add('hidden');
+        toggleButton.textContent = 'Show Grammar Details';
+        toggleButton.classList.remove('bg-gray-500', 'hover:bg-gray-600');
+        toggleButton.classList.add('bg-blue-500', 'hover:bg-blue-600');
+    }
 }
 
 function createSentenceCard(item, showReview = false) {
     const card = document.createElement('div');
     card.className = 'bg-white border border-slate-200 rounded-xl p-6 mb-6 shadow-sm hover:shadow-md transition-shadow';
 
+    const textToHighlight = item.rendered_text || item.ja_text;
+    const highlightedJaText = highlightGrammarPatterns(textToHighlight);
+
     card.innerHTML = `
         <div class="border-b border-slate-100 pb-4 mb-4">
-            <div class="text-japanese text-slate-800 mb-2">${item.ja_text}</div>
+            <div class="text-japanese text-slate-800 mb-2">${highlightedJaText}</div>
             <div class="text-reading">${item.reading}</div>
         </div>
 
@@ -234,6 +261,13 @@ function createSentenceCard(item, showReview = false) {
                 <source src="" type="audio/wav">
             </audio>
         </div>
+        <div class="mb-4">
+            <button id="grammar-toggle-${item.hash}" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors" onclick="toggleGrammarExplanation('${item.hash}')">Show Grammar Details</button>
+            <div id="grammar-explanation-${item.hash}" class="hidden mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <h4 class="text-blue-800 font-medium mb-2">Grammar Explanation:</h4>
+                <div class="prose prose-sm max-w-none text-blue-700"></div>
+            </div>
+        </div>
         ` : ''}
 
         <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-4">
@@ -259,6 +293,8 @@ function createSentenceCard(item, showReview = false) {
         loadAudioStats(item.hash);
         if (item.explain) {
             loadCombinedAudio(item.hash);
+            // Load grammar explanation
+            loadGrammarExplanation(item.hash, item.explain);
         }
     }, 100);
 
@@ -428,11 +464,29 @@ function loadCombinedAudio(hash) {
     }
 }
 
+function loadGrammarExplanation(hash, explanation) {
+    const explanationDiv = document.querySelector(`#grammar-explanation-${hash} .prose`);
+    if (explanationDiv && explanation) {
+        explanationDiv.innerHTML = marked.parse(explanation);
+    }
+}
+
 function loadAllCombinedAudio() {
     // Load combined audio for all sentences with explanations
     document.querySelectorAll('[id^="combined-audio-"]').forEach(element => {
         const hash = element.id.replace('combined-audio-', '');
         loadCombinedAudio(hash);
+    });
+}
+
+function loadAllGrammarExplanations() {
+    // Render markdown for all grammar explanations
+    document.querySelectorAll('[id^="grammar-explanation-"]').forEach(explanationDiv => {
+        const explanation = explanationDiv.getAttribute('data-explanation');
+        const proseDiv = explanationDiv.querySelector('.prose');
+        if (explanation && proseDiv) {
+            proseDiv.innerHTML = marked.parse(explanation);
+        }
     });
 }
 
@@ -472,7 +526,7 @@ function showMessage(message, type) {
     {% for item in data %}
         <div class="bg-white border border-slate-200 rounded-xl p-6 mb-6 shadow-sm hover:shadow-md transition-shadow">
             <div class="border-b border-slate-100 pb-4 mb-4">
-                <div class="text-japanese text-slate-800 mb-2">{{ item.ja_text }}</div>
+                <div class="text-japanese text-slate-800 mb-2">{{ item.rendered_text|highlight_grammar|safe if item.rendered_text else item.ja_text }}</div>
                 <div class="text-reading">{{ item.reading }}</div>
             </div>
 
@@ -502,6 +556,13 @@ function showMessage(message, type) {
                     <source src="" type="audio/wav">
                 </audio>
             </div>
+            <div class="mb-4">
+                <button id="grammar-toggle-{{ item.hash }}" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors" onclick="toggleGrammarExplanation('{{ item.hash }}')">Show Grammar Details</button>
+                <div id="grammar-explanation-{{ item.hash }}" class="hidden mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg" data-explanation="{{ item.explain|e }}">
+                    <h4 class="text-blue-800 font-medium mb-2">Grammar Explanation:</h4>
+                    <div class="prose prose-sm max-w-none text-blue-700"></div>
+                </div>
+            </div>
             {% endif %}
 
             <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-4">
@@ -524,15 +585,4 @@ function showMessage(message, type) {
     {% endfor %}
     {% endif %}
 </div>
-
-{% if data|length == 1 and data[0].explain %}
-<div class="bg-blue-50 border border-blue-200 rounded-xl p-6 border-l-4 border-l-blue-500">
-    <div id="explanation-content" class="prose prose-sm max-w-none text-slate-700"></div>
-</div>
-<script>
-    const explainElement = document.getElementById("explanation-content");
-    explainElement.innerHTML = marked.parse("## Grammar Explanation\n\n" + {{ data[0].explain|tojson }});
-</script>
-{% endif %}
-
 {% endblock %}
