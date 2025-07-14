@@ -53,3 +53,4 @@ htmlcov/
 .ruff_cache/
 coverage.xml
 CLAUDE.md
+GEMINI.md
