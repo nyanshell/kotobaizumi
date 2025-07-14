@@ -254,7 +254,7 @@ function createSentenceCard(item, showReview = false) {
         </div>
         ` : ''}
 
-        ${item.explain ? `
+        ${item.explanation ? `
         <div class="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
             <h3 class="text-green-800 font-medium mb-3">Combined Audio Playback</h3>
             <audio controls class="w-full" id="combined-audio-${item.hash}">
@@ -291,10 +291,10 @@ function createSentenceCard(item, showReview = false) {
     // Load audio stats for this sentence
     setTimeout(() => {
         loadAudioStats(item.hash);
-        if (item.explain) {
+        if (item.explanation) {
             loadCombinedAudio(item.hash);
             // Load grammar explanation
-            loadGrammarExplanation(item.hash, item.explain);
+            loadGrammarExplanation(item.hash, item.explanation);
         }
     }, 100);
 
@@ -549,7 +549,7 @@ function showMessage(message, type) {
             </div>
             {% endif %}
 
-            {% if item.explain %}
+            {% if item.explanation %}
             <div class="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
                 <h3 class="text-green-800 font-medium mb-3">Combined Audio Playback</h3>
                 <audio controls class="w-full" id="combined-audio-{{ item.hash }}">
@@ -558,7 +558,7 @@ function showMessage(message, type) {
             </div>
             <div class="mb-4">
                 <button id="grammar-toggle-{{ item.hash }}" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors" onclick="toggleGrammarExplanation('{{ item.hash }}')">Show Grammar Details</button>
-                <div id="grammar-explanation-{{ item.hash }}" class="hidden mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg" data-explanation="{{ item.explain|e }}">
+                <div id="grammar-explanation-{{ item.hash }}" class="hidden mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg" data-explanation="{{ item.explanation|e }}">
                     <h4 class="text-blue-800 font-medium mb-2">Grammar Explanation:</h4>
                     <div class="prose prose-sm max-w-none text-blue-700"></div>
                 </div>
