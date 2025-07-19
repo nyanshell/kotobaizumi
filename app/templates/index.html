@@ -162,12 +162,11 @@ function setActiveTab(tabName) {
 }
 
 function switchTab(tabName) {
-    setActiveTab(tabName);
-
-    // Update URL without reloading and without causing additional requests
-    const count = document.getElementById(tabName + '-count').value;
-    const newUrl = `/?sort=${tabName}&count=${count}`;
-    window.history.replaceState({}, '', newUrl);
+    // If switching to a different tab, load the sentences
+    if (tabName !== currentTab) {
+        const count = document.getElementById(tabName + '-count').value;
+        window.location.href = `/?sort=${tabName}&count=${count}`;
+    }
 }
 
 // Add click handlers for tab buttons
