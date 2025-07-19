@@ -220,7 +220,6 @@ def tts(text: str, synthesizer, ssml=False):
             speech_synthesis_result.reason
             == speechsdk.ResultReason.SynthesizingAudioCompleted
         ):
-            logger.debug("Azure TTS synthesis successful for text: %s", text[:50])
             return speech_synthesis_result.audio_data
         elif speech_synthesis_result.reason == speechsdk.ResultReason.Canceled:
             cancellation_details = speech_synthesis_result.cancellation_details
@@ -247,14 +246,14 @@ def tts(text: str, synthesizer, ssml=False):
             )
     except Exception as e:
         logger.error("Azure TTS API error: %s", e)
-        logger.error("Failed to synthesize text: %s", text[:100])
+        logger.error("Failed to synthesize text: %s", text)
         raise RuntimeError(f"TTS synthesis failed: {e}") from e
 
 
 def generate_sentence_content(text):
     """Generate translations and explanations without audio content"""
     try:
-        logger.info("Starting sentence content generation for: %s", text[:50])
+        logger.info("Starting sentence content generation for: %s", text)
         explain = explain_grammar(text)
         clean_text = text.replace("{{", "").replace("}}", "")
         zh_text = translate(clean_text, ZH_TRANSLATION_PROMPT)
@@ -380,16 +379,25 @@ def get_phrases(user_id: int, sort_type: str, return_count=1, offset=0):
 
 def save_generated_sentence(user_id: int, sentence_data: dict):
     """Save a generated sentence with its audio files"""
+    logger.debug("save_generated_sentence called with data: %s", sentence_data)
+
+    # Get the original text with markers if available
+    # This is the text the user originally entered with {{}} markers
+    original_text_with_markers = sentence_data.get("original_text", sentence_data["ja_text"])
+    logger.debug("Original text with markers: %s", original_text_with_markers)
+
     try:
-        # Generate audio content when saving
+        # Generate audio content using clean ja_text (without markers)
         wav_data = generate_audio_content(sentence_data)
     except Exception as e:
         logger.warning("TTS generation failed, saving sentence without audio: %s", e)
         wav_data = []
 
+    # Pass the original text with markers to save_sentence_data
+    # save_sentence_data will extract the grammar pattern and store both clean and rendered text
     return save_sentence_data(
         user_id,
-        sentence_data["ja_text"],
+        original_text_with_markers,  # Pass text with {{}} markers
         sentence_data["en_text"],
         sentence_data["cn_text"],
         wav_data,

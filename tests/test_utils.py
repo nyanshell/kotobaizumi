@@ -133,7 +133,7 @@ class TestAudioFunctions:
         # Mock the wave writer
         mock_writer = MagicMock()
         mock_wave_open.return_value.__enter__.return_value = mock_writer
-        
+
         # For empty list, we need to handle the case where no params are set
         # The actual implementation has a bug here - it doesn't set params for empty list
         try:
@@ -271,7 +271,7 @@ class TestSentenceSaving:
 
         # Verify audio generation was called
         mock_generate_audio.assert_called_once_with(sentence_data)
-        
+
         # Verify save_sentence_data was called with generated audio
         mock_save_data.assert_called_once_with(
             1,
@@ -284,6 +284,51 @@ class TestSentenceSaving:
         )
 
         assert result == {"hash": "test_hash", "ja_text": "テスト"}
+
+    @patch("app.utils.generate_audio_content")
+    @patch("app.utils.save_sentence_data")
+    def test_save_generated_sentence_with_grammar_markers(self, mock_save_data, mock_generate_audio):
+        """Test save_generated_sentence with grammar markers in original_text."""
+        mock_audio_data = [("ja-JP-AoiNeural", b"audio1")]
+        mock_generate_audio.return_value = mock_audio_data
+        mock_save_data.return_value = {
+            "hash": "test_hash",
+            "ja_text": "新学年を迎えるにあたって、私たちは新しい計画を立てました。",
+            "en_text": "As we enter the new school year, we have made new plans.",
+            "cn_text": "在迎接新的学年之际，我们制定了新的计划。",
+            "reading": "新学年（しんがくねん）を迎（むか）えるにあたって",
+            "explain": "Grammar explanation",
+            "rendered_text": "新学年を迎える{{にあたって}}、私たちは新しい計画を立てました。",
+            "grammar": "にあたって",
+        }
+
+        sentence_data = {
+            "ja_text": "新学年を迎えるにあたって、私たちは新しい計画を立てました。",  # Clean text
+            "original_text": "新学年を迎える{{にあたって}}、私たちは新しい計画を立てました。",  # With markers
+            "en_text": "As we enter the new school year, we have made new plans.",
+            "cn_text": "在迎接新的学年之际，我们制定了新的计划。",
+            "reading": "新学年（しんがくねん）を迎（むか）えるにあたって",
+            "explain": "Grammar explanation",
+        }
+
+        result = save_generated_sentence(1, sentence_data)
+
+        # Verify audio generation was called with clean text
+        mock_generate_audio.assert_called_once_with(sentence_data)
+
+        # Verify save_sentence_data was called with original text (with markers)
+        mock_save_data.assert_called_once_with(
+            1,
+            "新学年を迎える{{にあたって}}、私たちは新しい計画を立てました。",  # Text with markers
+            "As we enter the new school year, we have made new plans.",
+            "在迎接新的学年之际，我们制定了新的计划。",
+            mock_audio_data,
+            "Grammar explanation",
+            "新学年（しんがくねん）を迎（むか）えるにあたって",
+        )
+
+        assert result["rendered_text"] == "新学年を迎える{{にあたって}}、私たちは新しい計画を立てました。"
+        assert result["grammar"] == "にあたって"
 
     @patch("app.utils.generate_audio_content")
     @patch("app.utils.save_sentence_data")
@@ -304,7 +349,7 @@ class TestSentenceSaving:
 
         # Verify audio generation was attempted
         mock_generate_audio.assert_called_once_with(sentence_data)
-        
+
         # Verify save_sentence_data was called with empty audio data
         mock_save_data.assert_called_once_with(
             1,
@@ -346,6 +391,100 @@ class TestSentenceSaving:
         )
 
         assert result == {"hash": "min_hash"}
+
+
+class TestSaveSentenceData:
+    """Test cases for save_sentence_data function."""
+
+    @patch("app.utils.SentenceManager")
+    @patch("app.utils.save_wav")
+    def test_save_sentence_data_with_grammar_markers(self, mock_save_wav, mock_sentence_manager):
+        """Test save_sentence_data extracts grammar pattern correctly."""
+        from app.utils import save_sentence_data
+
+        mock_sentence_manager.save_sentence.return_value = True
+
+        # Test with grammar markers
+        result = save_sentence_data(
+            user_id=1,
+            text="新学年を迎える{{にあたって}}、私たちは新しい計画を立てました。",
+            en_text="As we enter the new school year, we have made new plans.",
+            zh_text="在迎接新的学年之际，我们制定了新的计划。",
+            wav_data=[("model1", b"audio1"), ("model2", b"audio2")],
+            explain="Grammar explanation",
+            reading="新学年（しんがくねん）を迎（むか）えるにあたって"
+        )
+
+        # Verify SentenceManager.save_sentence was called with correct params
+        mock_sentence_manager.save_sentence.assert_called_once()
+        call_args = mock_sentence_manager.save_sentence.call_args[0]
+
+        assert call_args[0] == 1  # user_id
+        assert len(call_args[1]) == 32  # hash is MD5 hex
+        assert call_args[2] == "新学年を迎えるにあたって、私たちは新しい計画を立てました。"  # clean ja_text
+        assert call_args[3] == "As we enter the new school year, we have made new plans."  # en_text
+        assert call_args[4] == "在迎接新的学年之际，我们制定了新的计划。"  # cn_text
+        assert call_args[5] == "新学年（しんがくねん）を迎（むか）えるにあたって"  # reading
+        assert call_args[6] == "Grammar explanation"  # explanation
+        assert call_args[7] == "新学年を迎える{{にあたって}}、私たちは新しい計画を立てました。"  # rendered_text (original)
+        assert call_args[8] == "にあたって"  # grammar pattern
+
+        # Verify result
+        assert result["ja_text"] == "新学年を迎えるにあたって、私たちは新しい計画を立てました。"
+        assert result["rendered_text"] == "新学年を迎える{{にあたって}}、私たちは新しい計画を立てました。"
+        assert result["grammar"] == "にあたって"
+
+        # Verify audio files were saved
+        assert mock_save_wav.call_count == 2
+
+    @patch("app.utils.SentenceManager")
+    @patch("app.utils.save_wav")
+    def test_save_sentence_data_without_grammar_markers(self, mock_save_wav, mock_sentence_manager):
+        """Test save_sentence_data without grammar markers."""
+        from app.utils import save_sentence_data
+
+        mock_sentence_manager.save_sentence.return_value = True
+
+        # Test without grammar markers
+        result = save_sentence_data(
+            user_id=1,
+            text="普通の文章です。",
+            en_text="This is a normal sentence.",
+            zh_text="这是普通的句子。",
+            wav_data=[("model1", b"audio1")],
+            explain="No grammar",
+            reading="ふつうのぶんしょうです。"
+        )
+
+        # Verify grammar pattern is None
+        call_args = mock_sentence_manager.save_sentence.call_args[0]
+        assert call_args[8] is None  # grammar pattern should be None
+
+        assert result["grammar"] is None
+        assert result["rendered_text"] == "普通の文章です。"
+
+    @patch("app.utils.SentenceManager")
+    def test_save_sentence_data_empty_grammar_markers(self, mock_sentence_manager):
+        """Test save_sentence_data rejects empty grammar markers."""
+        from app.utils import save_sentence_data
+
+        # Test with empty grammar markers
+        result = save_sentence_data(
+            user_id=1,
+            text="文章{{}}です。",  # Empty markers
+            en_text="Sentence.",
+            zh_text="句子。",
+            wav_data=[],
+            explain="",
+            reading="ぶんしょうです。"
+        )
+
+        # Should return error
+        assert "error" in result
+        assert "Empty grammar markers" in result["error"]
+
+        # SentenceManager.save_sentence should not be called
+        mock_sentence_manager.save_sentence.assert_not_called()
 
 
 class TestUtilityFunctions:

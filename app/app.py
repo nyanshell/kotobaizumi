@@ -122,7 +122,6 @@ def index():
     phrase_meta = get_phrases(
         current_user.id, sort_type, return_count=return_count, offset=offset
     )
-    print(phrase_meta)
     logger.debug(f"Phrase meta data retrieved: {phrase_meta}")
 
     if phrase_meta:
@@ -146,7 +145,6 @@ def generate():
 
         try:
             sentence_data = generate_sentence_content(text)
-            # Store only text data in session, not the large wav_data
             session_data = {
                 "ja_text": sentence_data["ja_text"],
                 "en_text": sentence_data["en_text"],
@@ -155,7 +153,6 @@ def generate():
                 "explain": sentence_data["explain"],
             }
             session["pending_sentence"] = session_data
-            # Store wav_data temporarily in a file or just regenerate when needed
             session["original_text"] = text
             return render_template("confirm.html", sentence_data=sentence_data)
         except Exception as e:
@@ -217,6 +214,10 @@ def confirm():
             # Save the edited sentence data
             try:
                 logger.info("About to call save_generated_sentence")
+                # Pass the original text with markers if available
+                original_text = session.get("original_text")
+                if original_text:
+                    sentence_data["original_text"] = original_text
                 result = save_generated_sentence(current_user.id, sentence_data)
                 logger.info(f"save_generated_sentence returned: {result}")
 
