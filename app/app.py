@@ -8,6 +8,7 @@ from flask import (
     redirect,
     render_template,
     request,
+    send_from_directory,
     session,
     url_for,
 )
@@ -73,6 +74,12 @@ def load_user(user_id):
     if user_data:
         return User(user_data["id"], user_data["username"])
     return None
+
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(os.path.join(app.root_path, 'static'),
+                               'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 
 @app.route("/login", methods=["GET", "POST"])
