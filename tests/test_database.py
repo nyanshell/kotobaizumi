@@ -89,11 +89,11 @@ class TestSentenceManager:
     """Test cases for SentenceManager class."""
 
     @pytest.fixture
-    def test_user(self, db_connection) -> int:
+    def test_user(self, app) -> int:
         """Create a test user and return user ID."""
         return UserManager.create_user("testuser", "password123")
 
-    def test_save_sentence_success(self, db_connection, test_user: int):
+    def test_save_sentence_success(self, test_user: int):
         """Test successful sentence saving."""
         result = SentenceManager.save_sentence(
             user_id=test_user,
@@ -103,11 +103,13 @@ class TestSentenceManager:
             cn_text="这是一个测试。",
             reading="これはテストです。",
             explanation="Test explanation.",
+            rendered_text="これは{{テスト}}です。",
+            grammar="テスト",
         )
 
         assert result is True
 
-    def test_save_sentence_duplicate_hash(self, db_connection, test_user: int):
+    def test_save_sentence_duplicate_hash(self, test_user: int):
         """Test saving sentence with duplicate hash fails."""
         hash_val = "duplicate_hash"
 
@@ -120,6 +122,8 @@ class TestSentenceManager:
             cn_text="First Chinese",
             reading="First reading",
             explanation="First explanation",
+            rendered_text="First {{sentence}}",
+            grammar="sentence",
         )
         assert result1 is True
 
@@ -132,10 +136,12 @@ class TestSentenceManager:
             cn_text="Second Chinese",
             reading="Second reading",
             explanation="Second explanation",
+            rendered_text="Second {{sentence}}",
+            grammar="sentence",
         )
         assert result2 is False
 
-    def test_get_sentences_for_review(self, db_connection, test_user: int):
+    def test_get_sentences_for_review(self, test_user: int):
         """Test getting sentences due for review."""
         # Save a sentence
         SentenceManager.save_sentence(
@@ -146,6 +152,8 @@ class TestSentenceManager:
             cn_text="复习测试",
             reading="レビューテスト",
             explanation="Review explanation",
+            rendered_text="レビュー{{テスト}}",
+            grammar="テスト",
         )
 
         sentences = SentenceManager.get_sentences_for_review(test_user, limit=10)
@@ -154,7 +162,7 @@ class TestSentenceManager:
         assert all("id" in s for s in sentences)
         assert all("ja_text" in s for s in sentences)
 
-    def test_get_random_sentences(self, db_connection, test_user: int):
+    def test_get_random_sentences(self, test_user: int):
         """Test getting random sentences."""
         # Save multiple sentences
         for i in range(3):
@@ -166,6 +174,8 @@ class TestSentenceManager:
                 cn_text=f"随机测试{i}",
                 reading=f"ランダムテスト{i}",
                 explanation=f"Random explanation {i}",
+                rendered_text=f"ランダム{{テスト}}{i}",
+                grammar="テスト",
             )
 
         sentences = SentenceManager.get_random_sentences(test_user, limit=2)
@@ -173,34 +183,7 @@ class TestSentenceManager:
         assert len(sentences) <= 2
         assert all("id" in s for s in sentences)
 
-    def test_update_review_success(self, db_connection, test_user: int):
-        """Test successful review update."""
-        # Save a sentence first
-        SentenceManager.save_sentence(
-            user_id=test_user,
-            hash_val="update_review_hash",
-            ja_text="アップデートテスト",
-            en_text="Update test",
-            cn_text="更新测试",
-            reading="アップデートテスト",
-            explanation="Update explanation",
-        )
-
-        # Get the sentence to get its ID
-        sentences = SentenceManager.get_random_sentences(test_user, limit=1)
-        sentence_id = sentences[0]["id"]
-
-        # Update review
-        result = SentenceManager.update_review(sentence_id, quality=4)
-
-        assert result is True
-
-    def test_update_review_nonexistent_sentence(self, db_connection):
-        """Test review update for non-existent sentence."""
-        result = SentenceManager.update_review(99999, quality=3)
-        assert result is False
-
-    def test_delete_sentence_success(self, db_connection, test_user: int):
+    def test_delete_sentence_success(self, test_user: int):
         """Test successful sentence deletion."""
         hash_val = "delete_test_hash"
 
@@ -213,6 +196,8 @@ class TestSentenceManager:
             cn_text="删除测试",
             reading="削除テスト",
             explanation="Delete explanation",
+            rendered_text="削除{{テスト}}",
+            grammar="テスト",
         )
 
         # Delete sentence
@@ -223,12 +208,12 @@ class TestSentenceManager:
         sentence = SentenceManager.get_sentence_by_hash(test_user, hash_val)
         assert sentence is None
 
-    def test_delete_sentence_nonexistent(self, db_connection, test_user: int):
+    def test_delete_sentence_nonexistent(self, test_user: int):
         """Test deletion of non-existent sentence."""
         result = SentenceManager.delete_sentence(test_user, "nonexistent_hash")
         assert result is True  # DuckDB DELETE succeeds even if no rows affected
 
-    def test_get_sentence_by_hash_exists(self, db_connection, test_user: int):
+    def test_get_sentence_by_hash_exists(self, test_user: int):
         """Test getting sentence by hash when it exists."""
         hash_val = "get_by_hash_test"
 
@@ -240,6 +225,8 @@ class TestSentenceManager:
             cn_text="哈希测试",
             reading="ハッシュテスト",
             explanation="Hash explanation",
+            rendered_text="ハッシュ{{テスト}}",
+            grammar="テスト",
         )
 
         sentence = SentenceManager.get_sentence_by_hash(test_user, hash_val)
@@ -248,12 +235,12 @@ class TestSentenceManager:
         assert sentence["hash"] == hash_val
         assert sentence["ja_text"] == "ハッシュテスト"
 
-    def test_get_sentence_by_hash_not_exists(self, db_connection, test_user: int):
+    def test_get_sentence_by_hash_not_exists(self, test_user: int):
         """Test getting sentence by hash when it doesn't exist."""
         sentence = SentenceManager.get_sentence_by_hash(test_user, "nonexistent")
         assert sentence is None
 
-    def test_user_isolation(self, db_connection):
+    def test_user_isolation(self, app):
         """Test that users can only access their own sentences."""
         # Create two users
         user1 = UserManager.create_user("user1", "password1")
@@ -268,6 +255,8 @@ class TestSentenceManager:
             cn_text="隔离测试",
             reading="分離テスト",
             explanation="Isolation explanation",
+            rendered_text="分離{{テスト}}",
+            grammar="テスト",
         )
 
         # User2 should not see user1's sentence

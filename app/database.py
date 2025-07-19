@@ -34,7 +34,7 @@ def init_database() -> None:
         );
     """)
 
-    # Sentences table with forgetting curve support
+    # Create sentence table
     conn.execute("""
         CREATE SEQUENCE IF NOT EXISTS sentences_id_seq;
         CREATE TABLE IF NOT EXISTS sentences (
@@ -303,83 +303,6 @@ class SentenceManager:
             for s in sentences
         ]
 
-    @staticmethod
-    def update_review(sentence_id: int, quality: int) -> bool:
-        """
-        Update sentence review using spaced repetition algorithm
-        Quality: 0-5 (0=blackout, 3=correct, 5=perfect)
-        """
-        conn = get_connection()
-
-        try:
-            # Get current sentence data
-            sentence = conn.execute(
-                """
-                SELECT review_count, ease_factor, interval_days
-                FROM sentences WHERE id = ?
-            """,
-                [sentence_id],
-            ).fetchone()
-
-            if not sentence:
-                conn.close()
-                return False
-
-            review_count, ease_factor, interval_days = sentence
-
-            # Calculate new values using SM-2 algorithm
-            if quality < 3:
-                # Reset if quality is poor
-                new_interval = 1
-                new_review_count = 0
-            else:
-                new_review_count = review_count + 1
-
-                if new_review_count == 1:
-                    new_interval = 1
-                elif new_review_count == 2:
-                    new_interval = 6
-                else:
-                    new_interval = max(1, int(interval_days * ease_factor))
-
-            # Update ease factor
-            new_ease_factor = max(
-                1.3, ease_factor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
-            )
-
-            # Update database
-            conn.execute(
-                """
-                UPDATE sentences
-                SET last_reviewed = CURRENT_TIMESTAMP, review_count = ?, ease_factor = ?,
-                    interval_days = ?, next_review = CURRENT_TIMESTAMP + INTERVAL ? DAY
-                WHERE id = ?
-            """,
-                [
-                    new_review_count,
-                    new_ease_factor,
-                    new_interval,
-                    new_interval,
-                    sentence_id,
-                ],
-            )
-
-            # Record review history
-            conn.execute(
-                """
-                INSERT INTO review_history (sentence_id, quality)
-                VALUES (?, ?)
-            """,
-                [sentence_id, quality],
-            )
-
-            conn.close()
-            return True
-
-        except Exception as e:
-            logger.error(f"Error updating review: {e}")
-            conn.close()
-            return False
 
     @staticmethod
     def delete_sentence(user_id: int, sentence_hash: str) -> bool:

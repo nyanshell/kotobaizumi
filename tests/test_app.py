@@ -158,27 +158,6 @@ class TestMainRoutes:
 
         assert response.status_code == 302  # Redirect to generate
 
-    @patch("app.database.SentenceManager.update_review")
-    def test_review_sentence_success(self, mock_update, client, authenticated_user):
-        """Test successful sentence review."""
-        mock_update.return_value = True
-
-        response = client.post("/review/1/4")
-
-        assert response.status_code == 200
-        data = json.loads(response.data)
-        assert data["result"] == "success"
-
-    @patch("app.database.SentenceManager.update_review")
-    def test_review_sentence_failure(self, mock_update, client, authenticated_user):
-        """Test failed sentence review."""
-        mock_update.return_value = False
-
-        response = client.post("/review/1/4")
-
-        assert response.status_code == 400
-        data = json.loads(response.data)
-        assert data["result"] == "error"
 
     @patch("app.utils.remove_sentence")
     def test_delete_sentence_success(self, mock_remove, client, authenticated_user):

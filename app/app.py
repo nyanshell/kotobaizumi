@@ -55,6 +55,7 @@ def log_request():
     if request.method == "POST":
         logger.info(f"Form data: {dict(request.form)}")
 
+
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
@@ -242,15 +243,6 @@ def confirm():
     session.pop("pending_sentence", None)
     session.pop("original_text", None)
     return redirect(url_for("generate"))
-
-
-@app.route("/review/<int:sentence_id>/<int:quality>", methods=["POST"])
-@login_required
-def review(sentence_id, quality):
-    if SentenceManager.update_review(sentence_id, quality):
-        return json.dumps({"result": "success"})
-    else:
-        return json.dumps({"result": "error"}), 400
 
 
 @app.route("/delete/<string:hash_text>", methods=["DELETE"])
