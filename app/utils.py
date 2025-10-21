@@ -7,12 +7,35 @@ import re
 import wave
 
 import azure.cognitiveservices.speech as speechsdk
-from openai import OpenAI
 
 from app.database import SentenceManager
 from app.settings import logger
 
-client = OpenAI()
+# LLM Configuration
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini").lower()
+
+# Initialize LLM client based on provider
+if LLM_PROVIDER == "openai":
+    from openai import OpenAI
+    _openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5")
+    logger.debug("Using OpenAI as LLM provider")
+
+elif LLM_PROVIDER == "gemini":
+    import google.generativeai as genai
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+    if not GEMINI_API_KEY:
+        raise ValueError(
+            "GEMINI_API_KEY environment variable is required when using Gemini"
+        )
+    genai.configure(api_key=GEMINI_API_KEY)
+    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-pro")
+    _gemini_model = genai.GenerativeModel(GEMINI_MODEL)
+    logger.debug("Using Gemini as LLM provider")
+else:
+    raise ValueError(
+        f"Unsupported LLM_PROVIDER: {LLM_PROVIDER}. Use 'openai' or 'gemini'"
+    )
 
 # Default to ./data directory relative to the project root
 DEFAULT_DATA_FOLDER = os.path.join(
@@ -23,7 +46,6 @@ META_FILE = os.getenv("META_FILE", "meta.json")
 JP_MODEL_1 = "ja-JP-AoiNeural"
 JP_MODEL_2 = "ja-JP-MayuNeural"
 JP_MODEL_3 = "ja-JP-DaichiNeural"
-GPT_MODEL = "gpt-4"
 PLAYBACK_ORDER = [JP_MODEL_1, JP_MODEL_2, JP_MODEL_3, "en", "zh"]
 
 
@@ -92,7 +114,7 @@ GRAMMAR_PROMPT = [
         "role": "system",
         "content": """You're a language teacher who teaching user Japanese language,
         The user will give you the grammar point and example sentence.
-        Explain the grammar in Jpanese. And add more examples. Add Hiragana readings for kanji words.
+        Explain the grammar in Japanese. And add more examples. Add Hiragana readings for kanji words(Only the first time).
         Don't use Romaji.
         Use ** to emphasis the grammar point. Output with aesthetic markdown format.""",
     },
@@ -127,6 +149,52 @@ READING_PROMPT = [
 ]
 
 
+def _call_llm_api(messages: list[dict]) -> str:
+    """Call the configured LLM API with the given messages.
+
+    Args:
+        messages: List of message dictionaries with 'role' and 'content' keys.
+                 Format follows OpenAI's chat completion API.
+
+    Returns:
+        Generated text response from the LLM.
+
+    Raises:
+        RuntimeError: If the API call fails.
+    """
+    if LLM_PROVIDER == "openai":
+        response = _openai_client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=messages,
+        )
+        result = response.choices[0].message.content
+        logger.debug("OpenAI API call successful")
+        return result
+
+    elif LLM_PROVIDER == "gemini":
+        # Convert OpenAI-style messages to Gemini prompt format
+        prompt_parts = []
+        for message in messages:
+            role = message["role"]
+            content = message["content"]
+
+            if role == "system":
+                # System messages set the context
+                prompt_parts.append(f"Instructions: {content}")
+            elif role == "user":
+                prompt_parts.append(f"User: {content}")
+            elif role == "assistant":
+                prompt_parts.append(f"Assistant: {content}")
+
+        # Join all parts with double newlines for clarity
+        full_prompt = "\n\n".join(prompt_parts)
+        full_prompt += "\n\nAssistant:"
+
+        response = _gemini_model.generate_content(full_prompt)
+        logger.debug("Gemini API call successful")
+        return response.text
+
+
 def explain_grammar(text: str) -> str:
     grammar_pattern = extract_grammar.search(text)
     if grammar_pattern is not None:
@@ -138,18 +206,24 @@ def explain_grammar(text: str) -> str:
 
 
 def translate(text: str, context_messages: list) -> str:
+    """Translate text using the configured LLM provider.
+
+    Args:
+        text: The text to translate or process.
+        context_messages: List of context messages in OpenAI format.
+
+    Returns:
+        Translated or processed text.
+
+    Raises:
+        RuntimeError: If translation fails.
+    """
     try:
-        resp = client.chat.completions.create(
-            model=GPT_MODEL,
-            messages=context_messages + [{"role": "user", "content": text}],
-        )
-        last_resp = json.loads(resp.model_dump_json())["choices"][0]["message"][
-            "content"
-        ]
-        logger.debug("OpenAI translation successful for text: %s", text[:50])
-        return last_resp
+        messages = context_messages + [{"role": "user", "content": text}]
+        result = _call_llm_api(messages)
+        logger.debug("Translation successful for text: %s", text[:50])
+        return result
     except Exception as e:
-        logger.error("OpenAI API error during translation: %s", e)
         logger.error("Failed to translate text: %s", text[:100])
         raise RuntimeError(f"Translation failed: {e}") from e
 

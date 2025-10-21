@@ -54,3 +54,4 @@ htmlcov/
 coverage.xml
 CLAUDE.md
 GEMINI.md
+*.db
