@@ -3,12 +3,10 @@
 
 import argparse
 import getpass
-import logging
 import sys
 
-from app.database import UserManager, get_connection
-from app.utils import logger
-
+from .database import UserManager, get_connection
+from .utils import logger
 
 
 def create_user(username, password=None):

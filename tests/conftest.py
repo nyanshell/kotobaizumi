@@ -10,6 +10,8 @@ from flask import Flask
 
 # Set test environment before importing app modules
 os.environ["DATA_FOLDER"] = tempfile.mkdtemp()
+os.environ["LLM_PROVIDER"] = "openai"  # Use OpenAI for tests (existing mocks)
+os.environ["TTS_PROVIDER"] = "azure"  # Use Azure for tests (existing mocks)
 os.environ["OPENAI_API_KEY"] = "test-key"
 os.environ["AZURE_SERVICE_TOKEN"] = "test-token"
 
@@ -56,17 +58,11 @@ def db_connection():
 @pytest.fixture
 def mock_openai():
     """Mock OpenAI client for testing."""
-    with patch("app.utils.client") as mock_client:
+    with patch("app.utils._openai_client") as mock_client:
         mock_response = MagicMock()
-        mock_response.model_dump_json.return_value = """
-        {
-            "choices": [{
-                "message": {
-                    "content": "Test translation response"
-                }
-            }]
-        }
-        """
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message = MagicMock()
+        mock_response.choices[0].message.content = "Test translation response"
         mock_client.chat.completions.create.return_value = mock_response
         yield mock_client
 

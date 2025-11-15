@@ -1,15 +1,12 @@
 import base64
 import hashlib
 import io
-import json
 import os
 import re
 import wave
 
-import azure.cognitiveservices.speech as speechsdk
-
-from app.database import SentenceManager
-from app.settings import logger
+from .database import SentenceManager
+from .settings import logger
 
 # LLM Configuration
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini").lower()
@@ -17,12 +14,14 @@ LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini").lower()
 # Initialize LLM client based on provider
 if LLM_PROVIDER == "openai":
     from openai import OpenAI
+
     _openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5")
     logger.debug("Using OpenAI as LLM provider")
 
 elif LLM_PROVIDER == "gemini":
     import google.generativeai as genai
+
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
     if not GEMINI_API_KEY:
         raise ValueError(
@@ -37,46 +36,77 @@ else:
         f"Unsupported LLM_PROVIDER: {LLM_PROVIDER}. Use 'openai' or 'gemini'"
     )
 
+# TTS Configuration
+TTS_PROVIDER = os.getenv("TTS_PROVIDER", "gemini").lower()
+
 # Default to ./data directory relative to the project root
 DEFAULT_DATA_FOLDER = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data"
 )
 DATA_FOLDER = os.getenv("DATA_FOLDER", DEFAULT_DATA_FOLDER)
 META_FILE = os.getenv("META_FILE", "meta.json")
-JP_MODEL_1 = "ja-JP-AoiNeural"
-JP_MODEL_2 = "ja-JP-MayuNeural"
-JP_MODEL_3 = "ja-JP-DaichiNeural"
-PLAYBACK_ORDER = [JP_MODEL_1, JP_MODEL_2, JP_MODEL_3, "en", "zh"]
 
+# Initialize TTS clients based on provider
+_gemini_tts_client = None  # Lazy initialization
 
-service_region = os.getenv("REGION", "japaneast")
-speech_key = os.getenv("AZURE_SERVICE_TOKEN")
+if TTS_PROVIDER == "gemini":
+    TTS_MODEL = os.getenv("TTS_MODEL", "gemini-2.5-pro-tts")
+    TTS_VOICE_NAME = os.getenv("TTS_VOICE_NAME", "Leda")
+    # Use only Leda for Japanese by default
+    JP_MODEL_1 = TTS_VOICE_NAME
+    JP_MODEL_2 = TTS_VOICE_NAME
+    JP_MODEL_3 = TTS_VOICE_NAME
+    PLAYBACK_ORDER = [JP_MODEL_1, "en", "zh"]
+    logger.debug(
+        "Using Google Gemini TTS as TTS provider with voice: %s", TTS_VOICE_NAME
+    )
 
-jp_speech_config = speechsdk.SpeechConfig(
-    subscription=speech_key,
-    region=service_region,
-)
-audio_config = speechsdk.audio.AudioOutputConfig(use_default_speaker=True)
+elif TTS_PROVIDER == "azure":
+    import azure.cognitiveservices.speech as speechsdk
 
-jp_speech_config.speech_synthesis_voice_name = JP_MODEL_1
-jp_speech_synthesizer = speechsdk.SpeechSynthesizer(
-    speech_config=jp_speech_config,
-    audio_config=audio_config,
-)
+    service_region = os.getenv("REGION", "japaneast")
+    speech_key = os.getenv("AZURE_SERVICE_TOKEN")
+    if not speech_key:
+        raise ValueError(
+            "AZURE_SERVICE_TOKEN environment variable is required when using Azure TTS"
+        )
 
-zh_speech_config = speechsdk.SpeechConfig(
-    subscription=speech_key,
-    region=service_region,
-)
-zh_speech_config.speech_synthesis_voice_name = "zh-CN-XiaoyiNeural"
-zh_speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=zh_speech_config)
+    JP_MODEL_1 = "ja-JP-AoiNeural"
+    JP_MODEL_2 = "ja-JP-MayuNeural"
+    JP_MODEL_3 = "ja-JP-DaichiNeural"
+    PLAYBACK_ORDER = [JP_MODEL_1, JP_MODEL_2, JP_MODEL_3, "en", "zh"]
 
+    jp_speech_config = speechsdk.SpeechConfig(
+        subscription=speech_key,
+        region=service_region,
+    )
+    audio_config = speechsdk.audio.AudioOutputConfig(use_default_speaker=True)
 
-en_speech_config = speechsdk.SpeechConfig(
-    subscription=speech_key, region=service_region
-)
-en_speech_config.speech_synthesis_voice_name = "en-GB-MaisieNeural"
-en_speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=en_speech_config)
+    jp_speech_config.speech_synthesis_voice_name = JP_MODEL_1
+    jp_speech_synthesizer = speechsdk.SpeechSynthesizer(
+        speech_config=jp_speech_config,
+        audio_config=audio_config,
+    )
+
+    zh_speech_config = speechsdk.SpeechConfig(
+        subscription=speech_key,
+        region=service_region,
+    )
+    zh_speech_config.speech_synthesis_voice_name = "zh-CN-XiaoyiNeural"
+    zh_speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=zh_speech_config)
+
+    en_speech_config = speechsdk.SpeechConfig(
+        subscription=speech_key, region=service_region
+    )
+    en_speech_config.speech_synthesis_voice_name = "en-GB-MaisieNeural"
+    en_speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=en_speech_config)
+    logger.debug("Using Azure as TTS provider")
+
+else:
+    raise ValueError(
+        f"Unsupported TTS_PROVIDER: {TTS_PROVIDER}. Use 'gemini' or 'azure'"
+    )
+
 extract_grammar = re.compile("{{(.*?)}}")
 
 
@@ -95,6 +125,7 @@ def extract_grammar_pattern(text: str) -> tuple[str, str]:
         clean_text = extract_grammar.sub(lambda m: m.group(1), text)
         return clean_text, grammar_pattern
     return text, None
+
 
 ZH_TRANSLATION_PROMPT = [
     {
@@ -242,7 +273,9 @@ def save_sentence_data(
         # Extract grammar pattern and get clean text
         clean_text, grammar_pattern = extract_grammar_pattern(text)
         if "{{" in text and grammar_pattern is None:
-            return {"error": "Empty grammar markers {{}} are not allowed. Please provide a grammar pattern like {{pattern}}."}
+            return {
+                "error": "Empty grammar markers {{}} are not allowed. Please provide a grammar pattern like {{pattern}}."
+            }
     else:
         clean_text, grammar_pattern = extract_grammar_pattern(text)
 
@@ -252,7 +285,15 @@ def save_sentence_data(
         save_wav(f"{text_hash}.{name}.wav", wav)
 
     success = SentenceManager.save_sentence(
-        user_id, text_hash, clean_text, en_text, zh_text, reading, explain, text, grammar_pattern
+        user_id,
+        text_hash,
+        clean_text,
+        en_text,
+        zh_text,
+        reading,
+        explain,
+        text,
+        grammar_pattern,
     )
 
     if success:
@@ -283,8 +324,68 @@ def make_ssml(text, model_name):
     return ssml_string
 
 
-def tts(text: str, synthesizer, ssml=False):
+def tts_gemini(text: str, language_code: str) -> bytes:
+    """Generate TTS audio using Google Gemini TTS.
+
+    Args:
+        text: Text to synthesize
+        language_code: Language code (e.g., 'ja-JP', 'en-US', 'zh-CN')
+
+    Returns:
+        Audio data in WAV format
+
+    Raises:
+        RuntimeError: If TTS synthesis fails
+    """
+    global _gemini_tts_client
+
     try:
+        # Lazy initialization of Gemini TTS client
+        if _gemini_tts_client is None:
+            from google.cloud import texttospeech
+
+            _gemini_tts_client = texttospeech.TextToSpeechClient()
+            logger.debug("Initialized Google Gemini TTS client")
+
+        from google.cloud import texttospeech
+
+        synthesis_input = texttospeech.SynthesisInput(text=text)
+        voice = texttospeech.VoiceSelectionParams(
+            language_code=language_code,
+            name=TTS_VOICE_NAME,
+            model_name=TTS_MODEL,
+        )
+        audio_config = texttospeech.AudioConfig(
+            audio_encoding=texttospeech.AudioEncoding.LINEAR16
+        )
+
+        response = _gemini_tts_client.synthesize_speech(
+            input=synthesis_input, voice=voice, audio_config=audio_config
+        )
+        return response.audio_content
+    except Exception as e:
+        logger.error("Gemini TTS API error: %s", e)
+        logger.error("Failed to synthesize text: %s", text[:100])
+        raise RuntimeError(f"Gemini TTS synthesis failed: {e}") from e
+
+
+def tts_azure(text: str, synthesizer, ssml=False) -> bytes:
+    """Generate TTS audio using Azure Speech Services.
+
+    Args:
+        text: Text to synthesize (or SSML string if ssml=True)
+        synthesizer: Azure speech synthesizer instance
+        ssml: Whether the text is SSML format
+
+    Returns:
+        Audio data in WAV format
+
+    Raises:
+        RuntimeError: If TTS synthesis fails
+    """
+    try:
+        import azure.cognitiveservices.speech as speechsdk
+
         if ssml:
             speech_synthesis_result = synthesizer.speak_ssml_async(text).get()
         else:
@@ -320,8 +421,8 @@ def tts(text: str, synthesizer, ssml=False):
             )
     except Exception as e:
         logger.error("Azure TTS API error: %s", e)
-        logger.error("Failed to synthesize text: %s", text)
-        raise RuntimeError(f"TTS synthesis failed: {e}") from e
+        logger.error("Failed to synthesize text: %s", text[:100])
+        raise RuntimeError(f"Azure TTS synthesis failed: {e}") from e
 
 
 def generate_sentence_content(text):
@@ -353,48 +454,66 @@ def generate_audio_content(sentence_data):
     en_text = sentence_data["en_text"]
     zh_text = sentence_data["cn_text"]
 
-    jp1_ssml_string = f"""
-    <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
-    <voice name='{JP_MODEL_1}' style='cheerful'>
-        <prosody rate='-10%'>
-            {clean_text}
-        </prosody>
-    </voice>
-    </speak>
-    """
+    logger.info("Starting TTS synthesis for multiple voices using %s", TTS_PROVIDER)
 
-    jp2_ssml_string = f"""
-    <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
-    <voice name='{JP_MODEL_2}'>
-        <prosody rate='-10%'>
-            {clean_text}
-        </prosody>
-    </voice>
-    </speak>
-    """
-
-    jp3_ssml_string = f"""
-    <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
-    <voice name='{JP_MODEL_3}'>
-        {clean_text}
-    </voice>
-    </speak>
-    """
-
-    try:
-        logger.info("Starting TTS synthesis for multiple voices")
+    if TTS_PROVIDER == "gemini":
+        # Use Gemini TTS with Leda voice for Japanese
         wav_data = [
-            (JP_MODEL_1, tts(jp1_ssml_string, jp_speech_synthesizer, ssml=True)),
-            (JP_MODEL_2, tts(jp2_ssml_string, jp_speech_synthesizer, ssml=True)),
-            (JP_MODEL_3, tts(jp3_ssml_string, jp_speech_synthesizer, ssml=True)),
-            ("en", tts(en_text, en_speech_synthesizer)),
-            ("zh", tts(zh_text, zh_speech_synthesizer)),
+            (JP_MODEL_1, tts_gemini(clean_text, "ja-JP")),
+            ("en", tts_gemini(en_text, "en-US")),
+            ("zh", tts_gemini(zh_text, "cmn-CN")),
         ]
-        logger.info("All TTS synthesis completed successfully")
-        return wav_data
-    except Exception as e:
-        logger.error("Failed to generate TTS audio for text: %s", clean_text)
-        raise RuntimeError(f"TTS generation failed: {e}") from e
+    elif TTS_PROVIDER == "azure":
+        # Use Azure TTS with multiple Japanese voices
+        jp1_ssml_string = f"""
+        <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
+        <voice name='{JP_MODEL_1}' style='cheerful'>
+            <prosody rate='-10%'>
+                {clean_text}
+            </prosody>
+        </voice>
+        </speak>
+        """
+
+        jp2_ssml_string = f"""
+        <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
+        <voice name='{JP_MODEL_2}'>
+            <prosody rate='-10%'>
+                {clean_text}
+            </prosody>
+        </voice>
+        </speak>
+        """
+
+        jp3_ssml_string = f"""
+        <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
+        <voice name='{JP_MODEL_3}'>
+            {clean_text}
+        </voice>
+        </speak>
+        """
+
+        wav_data = [
+            (
+                JP_MODEL_1,
+                tts_azure(jp1_ssml_string, jp_speech_synthesizer, ssml=True),
+            ),
+            (
+                JP_MODEL_2,
+                tts_azure(jp2_ssml_string, jp_speech_synthesizer, ssml=True),
+            ),
+            (
+                JP_MODEL_3,
+                tts_azure(jp3_ssml_string, jp_speech_synthesizer, ssml=True),
+            ),
+            ("en", tts_azure(en_text, en_speech_synthesizer)),
+            ("zh", tts_azure(zh_text, zh_speech_synthesizer)),
+        ]
+    else:
+        raise ValueError(f"Unsupported TTS_PROVIDER: {TTS_PROVIDER}")
+
+    logger.info("All TTS synthesis completed successfully")
+    return wav_data
 
 
 def concatenate_wavs(text_hash):
@@ -402,24 +521,56 @@ def concatenate_wavs(text_hash):
     sample_rate = 0
     for model_name in PLAYBACK_ORDER:
         full_name = os.path.join(DATA_FOLDER, f"{text_hash}.{model_name}.wav")
-        with wave.open(full_name, "rb") as w:
-            sample_rate = w.getframerate()
-            data.append([w.getparams(), w.readframes(w.getnframes())])
+        if not os.path.exists(full_name):
+            logger.warning("Audio file not found, skipping: %s", full_name)
+            continue
+        try:
+            with wave.open(full_name, "rb") as w:
+                sample_rate = w.getframerate()
+                data.append([w.getparams(), w.readframes(w.getnframes())])
+        except (wave.Error, OSError) as e:
+            logger.error("Failed to read audio file %s: %s", full_name, e)
+            continue
     return data, sample_rate
 
 
 def encode_audio_string(hash_text: list):
     wav_binary = io.BytesIO(b"")
-    with wave.open(wav_binary, "wb") as fout:
-        for idx, hash_info in enumerate(hash_text):
-            data, sample_rate = concatenate_wavs(hash_info["hash"])
-            pause_frames = 2 * sample_rate
-            pause_data = b"\x00" * pause_frames
-            if idx == 0:
-                fout.setparams(data[0][0])
-            for i in range(len(data)):
-                fout.writeframes(data[i][1])
-                fout.writeframes(pause_data)
+    has_data = False
+
+    try:
+        with wave.open(wav_binary, "wb") as fout:
+            for idx, hash_info in enumerate(hash_text):
+                data, sample_rate = concatenate_wavs(hash_info["hash"])
+                if not data:
+                    logger.warning(
+                        "No audio data available for hash: %s", hash_info["hash"]
+                    )
+                    continue
+
+                pause_frames = 2 * sample_rate
+                pause_data = b"\x00" * pause_frames
+
+                if not has_data:
+                    fout.setparams(data[0][0])
+                    has_data = True
+
+                for i in range(len(data)):
+                    fout.writeframes(data[i][1])
+                    fout.writeframes(pause_data)
+    except wave.Error as e:
+        if has_data:
+            logger.error("Wave file error: %s", e)
+        else:
+            logger.warning("No audio data available for any sentences")
+        return None
+    except (OSError, IndexError) as e:
+        logger.error("Error processing audio data: %s", e)
+        return None
+
+    if not has_data:
+        logger.warning("No audio data available for any sentences")
+        return None
 
     audio_base64 = base64.b64encode(wav_binary.getvalue()).decode("ascii")
     return f"data:audio/wav;base64,{audio_base64}"
@@ -457,7 +608,9 @@ def save_generated_sentence(user_id: int, sentence_data: dict):
 
     # Get the original text with markers if available
     # This is the text the user originally entered with {{}} markers
-    original_text_with_markers = sentence_data.get("original_text", sentence_data["ja_text"])
+    original_text_with_markers = sentence_data.get(
+        "original_text", sentence_data["ja_text"]
+    )
     logger.debug("Original text with markers: %s", original_text_with_markers)
 
     try:

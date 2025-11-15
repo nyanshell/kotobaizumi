@@ -4,7 +4,7 @@ from pathlib import Path
 import bcrypt
 import duckdb
 
-from app.settings import logger
+from .settings import logger
 
 # Default to ./data directory relative to the project root
 DEFAULT_DATA_FOLDER = Path(__file__).parent.parent / "data"
@@ -59,7 +59,6 @@ def init_database() -> None:
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
     """)
-
 
     # Review history for analytics
     conn.execute("""
@@ -164,7 +163,17 @@ class SentenceManager:
                 (user_id, hash, ja_text, en_text, cn_text, reading, explanation, next_review, rendered_text, grammar)
                 VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP + INTERVAL 1 DAY, ?, ?)
             """,
-                [user_id, hash_val, ja_text, en_text, cn_text, reading, explanation, rendered_text, grammar],
+                [
+                    user_id,
+                    hash_val,
+                    ja_text,
+                    en_text,
+                    cn_text,
+                    reading,
+                    explanation,
+                    rendered_text,
+                    grammar,
+                ],
             )
 
             conn.close()
@@ -302,7 +311,6 @@ class SentenceManager:
             }
             for s in sentences
         ]
-
 
     @staticmethod
     def delete_sentence(user_id: int, sentence_hash: str) -> bool:

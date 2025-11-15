@@ -21,8 +21,9 @@ from flask_login import (
     logout_user,
 )
 
-from app.database import SentenceManager, UserManager
-from app.utils import (
+from .database import SentenceManager, UserManager
+from .settings import logger
+from .utils import (
     encode_audio_string,
     encode_single_voice_audio,
     generate_sentence_content,
@@ -30,21 +31,22 @@ from app.utils import (
     remove_sentence,
     save_generated_sentence,
 )
-from app.settings import logger
-
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "your-secret-key-change-this")
 
 
-@app.template_filter('highlight_grammar')
+@app.template_filter("highlight_grammar")
 def highlight_grammar_filter(text):
     """Highlight grammar patterns in Japanese text"""
     if not text:
         return text
     # Replace {{pattern}} with highlighted spans
-    pattern = re.compile(r'{{([^}]+)}}')
-    highlighted = pattern.sub(r'<span class="bg-green-200 text-green-800 px-1 py-0.5 rounded font-medium">\1</span>', text)
+    pattern = re.compile(r"{{([^}]+)}}")
+    highlighted = pattern.sub(
+        r'<span class="bg-green-200 text-green-800 px-1 py-0.5 rounded font-medium">\1</span>',
+        text,
+    )
     logger.debug(f"Highlighting grammar patterns in text: {text} -> {highlighted}")
     return highlighted
 
@@ -52,7 +54,9 @@ def highlight_grammar_filter(text):
 @app.before_request
 def log_request():
     logger.info(f"REQUEST: {request.method} {request.path}")
-    logger.info(f"User authenticated: {current_user.is_authenticated if hasattr(current_user, 'is_authenticated') else 'N/A'}")
+    logger.info(
+        f"User authenticated: {current_user.is_authenticated if hasattr(current_user, 'is_authenticated') else 'N/A'}"
+    )
     if request.method == "POST":
         logger.info(f"Form data: {dict(request.form)}")
 
@@ -76,10 +80,13 @@ def load_user(user_id):
     return None
 
 
-@app.route('/favicon.ico')
+@app.route("/favicon.ico")
 def favicon():
-    return send_from_directory(os.path.join(app.root_path, 'static'),
-                               'favicon.ico', mimetype='image/vnd.microsoft.icon')
+    return send_from_directory(
+        os.path.join(app.root_path, "static"),
+        "favicon.ico",
+        mimetype="image/vnd.microsoft.icon",
+    )
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -182,18 +189,24 @@ def confirm():
     logger.info(f"Session keys: {list(session.keys())}")
     has_pending = "pending_sentence" in session
     has_original = "original_text" in session
-    logger.info(f"Has pending_sentence: {has_pending}, has original_text: {has_original}")
+    logger.info(
+        f"Has pending_sentence: {has_pending}, has original_text: {has_original}"
+    )
 
     # Treat any POST with sentence data as save action if action is missing
     if action == "save" or (action is None and request.form.get("ja_text")):
         if action is None:
-            logger.info("Action was None, but treating as save since ja_text is present")
+            logger.info(
+                "Action was None, but treating as save since ja_text is present"
+            )
         logger.info("Processing save action")
         sentence_data = session.get("pending_sentence")
         logger.info(f"Retrieved sentence_data: {sentence_data is not None}")
 
         if sentence_data:
-            logger.info(f"Original sentence_data keys: {list(sentence_data.keys()) if sentence_data else 'None'}")
+            logger.info(
+                f"Original sentence_data keys: {list(sentence_data.keys()) if sentence_data else 'None'}"
+            )
 
             # Allow user to edit the translations
             original_ja = sentence_data.get("ja_text", "")
@@ -234,7 +247,9 @@ def confirm():
                     session.pop("pending_sentence", None)
                     session.pop("original_text", None)
                     # Show the saved sentence instead of redirecting
-                    return render_template("confirm.html", sentence_data=result, saved=True)
+                    return render_template(
+                        "confirm.html", sentence_data=result, saved=True
+                    )
                 else:
                     logger.error(f"Save failed with error: {result['error']}")
                     flash(f"Error saving sentence: {result['error']}")

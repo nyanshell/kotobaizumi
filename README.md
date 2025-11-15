@@ -24,6 +24,12 @@ docker run --env-file=.env -p 0.0.0.0:5000:5000 -v ./save:/data -it kotoba:<vers
 dotenv run -- flask --app app/app.py run --debug
 ```
 
+### Cli tool
+
+```bash
+dotenv run -- python -m app.cli -h
+```
+
 ## Config
 
 `.env`:

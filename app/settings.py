@@ -2,7 +2,6 @@ import logging
 import os
 import sys
 
-
 LOGGING_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
 logging.basicConfig(
