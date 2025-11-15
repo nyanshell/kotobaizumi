@@ -52,13 +52,13 @@ _gemini_tts_client = None  # Lazy initialization
 if TTS_PROVIDER == "gemini":
     TTS_MODEL = os.getenv("TTS_MODEL", "gemini-2.5-pro-tts")
     TTS_VOICE_NAME = os.getenv("TTS_VOICE_NAME", "Leda")
-    # Use only Leda for Japanese by default
+    # Use Leda for Japanese, and Zephyr for slow/clear version
     JP_MODEL_1 = TTS_VOICE_NAME
-    JP_MODEL_2 = TTS_VOICE_NAME
-    JP_MODEL_3 = TTS_VOICE_NAME
-    PLAYBACK_ORDER = [JP_MODEL_1, "en", "zh"]
+    JP_MODEL_2 = "Zephyr"  # Slower, clearer reading for learning
+    PLAYBACK_ORDER = [JP_MODEL_1, JP_MODEL_2, "en", "zh"]
     logger.debug(
-        "Using Google Gemini TTS as TTS provider with voice: %s", TTS_VOICE_NAME
+        "Using Google Gemini TTS as TTS provider with voices: %s (normal), Zephyr (slow)",
+        TTS_VOICE_NAME,
     )
 
 elif TTS_PROVIDER == "azure":
@@ -324,12 +324,16 @@ def make_ssml(text, model_name):
     return ssml_string
 
 
-def tts_gemini(text: str, language_code: str) -> bytes:
+def tts_gemini(
+    text: str, language_code: str, voice_name: str = None, prompt: str = None
+) -> bytes:
     """Generate TTS audio using Google Gemini TTS.
 
     Args:
         text: Text to synthesize
         language_code: Language code (e.g., 'ja-JP', 'en-US', 'zh-CN')
+        voice_name: Voice name (defaults to TTS_VOICE_NAME)
+        prompt: Optional prompt for styling instructions (e.g., "Speak slowly and clearly")
 
     Returns:
         Audio data in WAV format
@@ -347,12 +351,21 @@ def tts_gemini(text: str, language_code: str) -> bytes:
             _gemini_tts_client = texttospeech.TextToSpeechClient()
             logger.debug("Initialized Google Gemini TTS client")
 
+        if voice_name is None:
+            voice_name = TTS_VOICE_NAME
+
         from google.cloud import texttospeech
 
-        synthesis_input = texttospeech.SynthesisInput(text=text)
+        # Create synthesis input with optional prompt
+        if prompt:
+            synthesis_input = texttospeech.SynthesisInput(text=text, prompt=prompt)
+            logger.debug("Using prompt for TTS: %s", prompt)
+        else:
+            synthesis_input = texttospeech.SynthesisInput(text=text)
+
         voice = texttospeech.VoiceSelectionParams(
             language_code=language_code,
-            name=TTS_VOICE_NAME,
+            name=voice_name,
             model_name=TTS_MODEL,
         )
         audio_config = texttospeech.AudioConfig(
@@ -361,6 +374,11 @@ def tts_gemini(text: str, language_code: str) -> bytes:
 
         response = _gemini_tts_client.synthesize_speech(
             input=synthesis_input, voice=voice, audio_config=audio_config
+        )
+        logger.debug(
+            "Gemini TTS synthesis successful for voice: %s (prompt: %s)",
+            voice_name,
+            "yes" if prompt else "no",
         )
         return response.audio_content
     except Exception as e:
@@ -459,9 +477,18 @@ def generate_audio_content(sentence_data):
     if TTS_PROVIDER == "gemini":
         # Use Gemini TTS with Leda voice for Japanese
         wav_data = [
-            (JP_MODEL_1, tts_gemini(clean_text, "ja-JP")),
-            ("en", tts_gemini(en_text, "en-US")),
-            ("zh", tts_gemini(zh_text, "cmn-CN")),
+            (JP_MODEL_1, tts_gemini(clean_text, "ja-JP", voice_name=JP_MODEL_1)),
+            (
+                JP_MODEL_2,
+                tts_gemini(
+                    clean_text,
+                    "ja-JP",
+                    voice_name=JP_MODEL_2,
+                    prompt="Speak slowly and clearly for language learning purposes. Use a gentle, educational tone with careful pronunciation.",
+                ),
+            ),
+            ("en", tts_gemini(en_text, "en-US", voice_name=TTS_VOICE_NAME)),
+            ("zh", tts_gemini(zh_text, "cmn-CN", voice_name=TTS_VOICE_NAME)),
         ]
     elif TTS_PROVIDER == "azure":
         # Use Azure TTS with multiple Japanese voices
@@ -574,6 +601,47 @@ def encode_audio_string(hash_text: list):
 
     audio_base64 = base64.b64encode(wav_binary.getvalue()).decode("ascii")
     return f"data:audio/wav;base64,{audio_base64}"
+
+
+def get_available_voices(text_hash: str) -> list[dict]:
+    """Get list of available voice files for a given sentence hash.
+
+    Args:
+        text_hash: The sentence hash to check
+
+    Returns:
+        List of dictionaries with voice information:
+        [{"name": "voice_name", "display_name": "Display Name", "color": "css-color"}]
+    """
+    available_voices = []
+
+    # Define voice display names and colors
+    voice_info = {
+        "Leda": {"display_name": "Leda (JP)", "color": "green"},
+        "Zephyr": {"display_name": "Zephyr (Slow JP)", "color": "purple"},
+        "ja-JP-AoiNeural": {"display_name": "Aoi", "color": "green"},
+        "ja-JP-MayuNeural": {"display_name": "Mayu", "color": "green"},
+        "ja-JP-DaichiNeural": {"display_name": "Daichi", "color": "green"},
+        "en": {"display_name": "English", "color": "blue"},
+        "zh": {"display_name": "Chinese", "color": "red"},
+    }
+
+    # Check each voice in PLAYBACK_ORDER
+    for voice_name in PLAYBACK_ORDER:
+        full_name = os.path.join(DATA_FOLDER, f"{text_hash}.{voice_name}.wav")
+        if os.path.exists(full_name):
+            info = voice_info.get(
+                voice_name, {"display_name": voice_name, "color": "gray"}
+            )
+            available_voices.append(
+                {
+                    "name": voice_name,
+                    "display_name": info["display_name"],
+                    "color": info["color"],
+                }
+            )
+
+    return available_voices
 
 
 def encode_single_voice_audio(text_hash: str, voice_name: str):

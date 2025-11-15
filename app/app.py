@@ -27,6 +27,7 @@ from .utils import (
     encode_audio_string,
     encode_single_voice_audio,
     generate_sentence_content,
+    get_available_voices,
     get_phrases,
     remove_sentence,
     save_generated_sentence,
@@ -138,7 +139,10 @@ def index():
     )
     logger.debug(f"Phrase meta data retrieved: {phrase_meta}")
 
+    # Add available voices to each sentence
     if phrase_meta:
+        for sentence in phrase_meta:
+            sentence["available_voices"] = get_available_voices(sentence["hash"])
         audio_string = encode_audio_string(phrase_meta)
     else:
         audio_string = None
