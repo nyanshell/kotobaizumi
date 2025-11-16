@@ -48,20 +48,20 @@ META_FILE = os.getenv("META_FILE", "meta.json")
 
 # Initialize TTS clients based on provider
 _gemini_tts_client = None  # Lazy initialization
+PLAYBACK_ORDER = []
 
-if TTS_PROVIDER == "gemini":
+if "gemini" in TTS_PROVIDER:
     TTS_MODEL = os.getenv("TTS_MODEL", "gemini-2.5-pro-tts")
     TTS_VOICE_NAME = os.getenv("TTS_VOICE_NAME", "Leda")
-    # Use Leda for Japanese, and Zephyr for slow/clear version
-    JP_MODEL_1 = TTS_VOICE_NAME
-    JP_MODEL_2 = "Zephyr"  # Slower, clearer reading for learning
-    PLAYBACK_ORDER = [JP_MODEL_1, JP_MODEL_2, "en", "zh"]
+    GEMINI_JP_VOICE_1 = "Leda"
+    GEMINI_JP_VOICE_2 = "Zephyr"
+    PLAYBACK_ORDER += [GEMINI_JP_VOICE_1, GEMINI_JP_VOICE_2]
     logger.debug(
         "Using Google Gemini TTS as TTS provider with voices: %s (normal), Zephyr (slow)",
         TTS_VOICE_NAME,
     )
 
-elif TTS_PROVIDER == "azure":
+if "azure" in TTS_PROVIDER:
     import azure.cognitiveservices.speech as speechsdk
 
     service_region = os.getenv("REGION", "japaneast")
@@ -74,7 +74,11 @@ elif TTS_PROVIDER == "azure":
     JP_MODEL_1 = "ja-JP-AoiNeural"
     JP_MODEL_2 = "ja-JP-MayuNeural"
     JP_MODEL_3 = "ja-JP-DaichiNeural"
-    PLAYBACK_ORDER = [JP_MODEL_1, JP_MODEL_2, JP_MODEL_3, "en", "zh"]
+    PLAYBACK_ORDER += [
+        "ja-JP-AoiNeural",
+        "ja-JP-MayuNeural",
+        "ja-JP-DaichiNeural",
+    ]
 
     jp_speech_config = speechsdk.SpeechConfig(
         subscription=speech_key,
@@ -107,6 +111,7 @@ else:
         f"Unsupported TTS_PROVIDER: {TTS_PROVIDER}. Use 'gemini' or 'azure'"
     )
 
+PLAYBACK_ORDER += ["en", "zh"]
 extract_grammar = re.compile("{{(.*?)}}")
 
 
@@ -358,7 +363,10 @@ def make_ssml(text, model_name):
 
 
 def tts_gemini(
-    text: str, language_code: str, voice_name: str = None, prompt: str = None
+    text: str,
+    language_code: str,
+    voice_name: str | None = None,
+    prompt: str | None = None,
 ) -> bytes:
     """Generate TTS audio using Google Gemini TTS.
 
@@ -506,24 +514,45 @@ def generate_audio_content(sentence_data):
     zh_text = sentence_data["cn_text"]
 
     logger.info("Starting TTS synthesis for multiple voices using %s", TTS_PROVIDER)
-
-    if TTS_PROVIDER == "gemini":
-        # Use Gemini TTS with Leda voice for Japanese
-        wav_data = [
-            (JP_MODEL_1, tts_gemini(clean_text, "ja-JP", voice_name=JP_MODEL_1)),
+    wav_data = []
+    if "gemini" in TTS_PROVIDER:
+        wav_data += [
             (
-                JP_MODEL_2,
+                GEMINI_JP_VOICE_1,
+                tts_gemini(clean_text, "ja-JP", voice_name=GEMINI_JP_VOICE_1),
+            ),
+            (
+                GEMINI_JP_VOICE_2,
                 tts_gemini(
                     clean_text,
                     "ja-JP",
-                    voice_name=JP_MODEL_2,
-                    prompt="Speak slowly and clearly for language learning purposes. Use a gentle, educational tone with careful pronunciation.",
+                    voice_name=GEMINI_JP_VOICE_2,
+                    prompt="Speak a little bit slower than the normal speaking, and clearly for language learning purposes. Use a gentle, educational tone with careful pronunciation.",
                 ),
             ),
-            ("en", tts_gemini(en_text, "en-US", voice_name=TTS_VOICE_NAME)),
-            ("zh", tts_gemini(zh_text, "cmn-CN", voice_name=TTS_VOICE_NAME)),
         ]
-    elif TTS_PROVIDER == "azure":
+        if "azure" not in TTS_PROVIDER:
+            wav_data += [
+                (
+                    "en",
+                    tts_gemini(
+                        en_text,
+                        "en-US",
+                        prompt="Speak as a native speaker",
+                        voice_name=TTS_VOICE_NAME,
+                    ),
+                ),
+                (
+                    "zh",
+                    tts_gemini(
+                        zh_text,
+                        "cmn-CN",
+                        prompt="Speak as a native speaker",
+                        voice_name=TTS_VOICE_NAME,
+                    ),
+                ),
+            ]
+    if "azure" in TTS_PROVIDER:
         # Use Azure TTS with multiple Japanese voices
         jp1_ssml_string = f"""
         <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
@@ -553,7 +582,7 @@ def generate_audio_content(sentence_data):
         </speak>
         """
 
-        wav_data = [
+        wav_data += [
             (
                 JP_MODEL_1,
                 tts_azure(jp1_ssml_string, jp_speech_synthesizer, ssml=True),
@@ -569,7 +598,7 @@ def generate_audio_content(sentence_data):
             ("en", tts_azure(en_text, en_speech_synthesizer)),
             ("zh", tts_azure(zh_text, zh_speech_synthesizer)),
         ]
-    else:
+    if "azure" not in TTS_PROVIDER and "gemini" not in TTS_PROVIDER:
         raise ValueError(f"Unsupported TTS_PROVIDER: {TTS_PROVIDER}")
 
     logger.info("All TTS synthesis completed successfully")
