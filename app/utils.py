@@ -567,7 +567,7 @@ def encode_audio_string(hash_text: list):
 
     try:
         with wave.open(wav_binary, "wb") as fout:
-            for idx, hash_info in enumerate(hash_text):
+            for _, hash_info in enumerate(hash_text):
                 data, sample_rate = concatenate_wavs(hash_info["hash"])
                 if not data:
                     logger.warning(
