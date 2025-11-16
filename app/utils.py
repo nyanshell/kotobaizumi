@@ -140,7 +140,7 @@ EN_TRANSLATION_PROMPT = [
         into English. I require the translation to be in line with the original context.""",
     },
 ]
-GRAMMAR_PROMPT = [
+GRAMMAR_PROMPT_OPENAI = [
     {
         "role": "system",
         "content": """You're a language teacher who teaching user Japanese language,
@@ -162,6 +162,35 @@ GRAMMAR_PROMPT = [
 **そういう**態度（たいど）は許容（きょよう）できません。 (Such an attitude is not acceptable.)
 あなたが話（はなし）している**そういう**問題（もんだい）について考（かんが）えてみます。 (I'll think about such a problem you're talking about.)
 **そういう**意図（いと）は全（まった）くありませんでした。 (There was no such intention at all.)""",
+    },
+]
+
+GRAMMAR_PROMPT_GEMINI = [
+    {
+        "role": "system",
+        "content": """You are a Japanese language teacher. The user provides a grammar point and example sentence.
+
+Instructions:
+- Explain the grammar directly in Japanese without greetings or acknowledgments
+- Add 2-3 example sentences with English translations in parentheses
+- Only add readings (in parentheses) for important kanji words, not every kanji
+- Use ** to emphasize the grammar point
+- Use clean markdown format
+- Start your response immediately with the explanation""",
+    },
+    {
+        "role": "user",
+        "content": "Show me the usage of 「辛さ」 in the sentence この辛さは耐えられない。",
+    },
+    {
+        "role": "assistant",
+        "content": """「辛さ（つらさ）」は日本語の名詞で、「苦しさ」や「困難さ」を表現する際に使われます。「辛さ」は物理的な痛みだけでなく、心理的な困難やストレスについても言及することができます。
+
+例文：
+
+**辛さ**を我慢することは、強さではない。 (Enduring pain/hardship is not a strength.)
+この料理の**辛さ**は何とも言えません。 (The spiciness of this dish is indescribable.)
+彼女の失恋（しつれん）の**辛さ**を私には理解できない。 (I can't understand the pain of her broken heart.)""",
     },
 ]
 READING_PROMPT = [
@@ -229,9 +258,13 @@ def _call_llm_api(messages: list[dict]) -> str:
 def explain_grammar(text: str) -> str:
     grammar_pattern = extract_grammar.search(text)
     if grammar_pattern is not None:
+        # Use provider-specific grammar prompt
+        grammar_prompt = (
+            GRAMMAR_PROMPT_GEMINI if LLM_PROVIDER == "gemini" else GRAMMAR_PROMPT_OPENAI
+        )
         return translate(
             f"Show me the usage of 「{grammar_pattern.group(1)}」 in the sentence {text}",
-            GRAMMAR_PROMPT,
+            grammar_prompt,
         )
     return ""
 
