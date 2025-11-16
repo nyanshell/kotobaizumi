@@ -20,16 +20,16 @@ if LLM_PROVIDER == "openai":
     logger.debug("Using OpenAI as LLM provider")
 
 elif LLM_PROVIDER == "gemini":
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types
 
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
     if not GEMINI_API_KEY:
         raise ValueError(
             "GEMINI_API_KEY environment variable is required when using Gemini"
         )
-    genai.configure(api_key=GEMINI_API_KEY)
+    _gemini_client = genai.Client(api_key=GEMINI_API_KEY)
     GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-pro")
-    _gemini_model = genai.GenerativeModel(GEMINI_MODEL)
     logger.debug("Using Gemini as LLM provider")
 else:
     raise ValueError(
@@ -135,14 +135,30 @@ def extract_grammar_pattern(text: str) -> tuple[str, str]:
 ZH_TRANSLATION_PROMPT = [
     {
         "role": "system",
-        "content": "你是一个专业的译者，将用户输入的句子翻译成中文。要求符合原句的语境",
+        "content": "你是一个专业的译者，将用户输入的句子翻译成中文。除了翻译之外不要有任何额外的输出。",
+    },
+    {
+        "role": "user",
+        "content": "１万円の安いギターでもギタリストにかかれば、高いギターを弾いているかのように錯覚してしまう。",
+    },
+    {
+        "role": "assistant",
+        "content": "即便是一把价值一万日元的廉价吉他，只要到了吉他手的手里，也会让人产生仿佛在弹奏昂贵名琴的错觉。",
     },
 ]
 EN_TRANSLATION_PROMPT = [
     {
         "role": "system",
         "content": """You're a professional translator who translates sentences entered by users
-        into English. I require the translation to be in line with the original context.""",
+        into English.Don't say anything other than the translation.""",
+    },
+    {
+        "role": "user",
+        "content": "１万円の安いギターでもギタリストにかかれば、高いギターを弾いているかのように錯覚してしまう。",
+    },
+    {
+        "role": "assistant",
+        "content": "In the hands of a skilled guitarist, even a cheap 10,000 yen guitar can sound as if they're playing an expensive one.",
     },
 ]
 GRAMMAR_PROMPT_OPENAI = [
@@ -214,7 +230,7 @@ READING_PROMPT = [
 ]
 
 
-def _call_llm_api(messages: list[dict]) -> str:
+def _call_llm_api(messages: list[dict]) -> str | None:
     """Call the configured LLM API with the given messages.
 
     Args:
@@ -237,25 +253,41 @@ def _call_llm_api(messages: list[dict]) -> str:
         return result
 
     elif LLM_PROVIDER == "gemini":
-        # Convert OpenAI-style messages to Gemini prompt format
-        prompt_parts = []
+        # Convert OpenAI-style messages to Gemini format with proper roles
+        system_instruction = None
+        contents = []
+
         for message in messages:
             role = message["role"]
             content = message["content"]
 
             if role == "system":
-                # System messages set the context
-                prompt_parts.append(f"Instructions: {content}")
+                # Extract system instruction (use the last one if multiple)
+                system_instruction = content
             elif role == "user":
-                prompt_parts.append(f"User: {content}")
+                contents.append(
+                    types.Content(role="user", parts=[types.Part(text=content)])
+                )
             elif role == "assistant":
-                prompt_parts.append(f"Assistant: {content}")
+                # In Gemini SDK, assistant responses use "model" role
+                contents.append(
+                    types.Content(role="model", parts=[types.Part(text=content)])
+                )
 
-        # Join all parts with double newlines for clarity
-        full_prompt = "\n\n".join(prompt_parts)
-        full_prompt += "\n\nAssistant:"
+        # Generate content with system instruction if present
+        if system_instruction:
+            response = _gemini_client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction
+                ),
+            )
+        else:
+            response = _gemini_client.models.generate_content(
+                model=GEMINI_MODEL, contents=contents
+            )
 
-        response = _gemini_model.generate_content(full_prompt)
         logger.debug("Gemini API call successful")
         return response.text
 
@@ -290,10 +322,10 @@ def translate(text: str, context_messages: list) -> str:
     try:
         messages = context_messages + [{"role": "user", "content": text}]
         result = _call_llm_api(messages)
-        logger.debug("Translation successful for text: %s", text[:50])
+        logger.debug("Translation successful for text: %s", text)
         return result
     except Exception as e:
-        logger.error("Failed to translate text: %s", text[:100])
+        logger.error("Failed to translate text: %s", text)
         raise RuntimeError(f"Translation failed: {e}") from e
 
 
@@ -527,7 +559,7 @@ def generate_audio_content(sentence_data):
                     clean_text,
                     "ja-JP",
                     voice_name=GEMINI_JP_VOICE_2,
-                    prompt="Speak a little bit slower than the normal speaking, and clearly for language learning purposes. Use a gentle, educational tone with careful pronunciation.",
+                    prompt="Speak clearly for language learning purposes. Use a gentle, educational tone.",
                 ),
             ),
         ]
