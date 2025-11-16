@@ -626,8 +626,22 @@ def get_available_voices(text_hash: str) -> list[dict]:
         "zh": {"display_name": "Chinese", "color": "red"},
     }
 
-    # Check each voice in PLAYBACK_ORDER
-    for voice_name in PLAYBACK_ORDER:
+    # Check for all possible voice names from both TTS providers
+    # This ensures backward compatibility with files created by different providers
+    all_possible_voices = [
+        # Gemini voices
+        "Leda",
+        "Zephyr",
+        # Azure voices
+        "ja-JP-AoiNeural",
+        "ja-JP-MayuNeural",
+        "ja-JP-DaichiNeural",
+        # Common voices for both providers
+        "en",
+        "zh",
+    ]
+
+    for voice_name in all_possible_voices:
         full_name = os.path.join(DATA_FOLDER, f"{text_hash}.{voice_name}.wav")
         if os.path.exists(full_name):
             info = voice_info.get(
