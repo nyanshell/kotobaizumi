@@ -72,12 +72,16 @@ if "azure" in TTS_PROVIDER:
         )
 
     JP_MODEL_1 = "ja-JP-AoiNeural"
-    JP_MODEL_2 = "ja-JP-MayuNeural"
-    JP_MODEL_3 = "ja-JP-DaichiNeural"
+    JP_MODEL_2 = "ja-JP-Nanami:DragonHDLatestNeural"
+    JP_MODEL_3 = "ja-JP-Masaru:DragonHDLatestNeural"
+    JP_MODEL_2_DEPRECATED = "ja-JP-MayuNeural"
+    JP_MODEL_3_DEPRECATED = "ja-JP-DaichiNeural"
     PLAYBACK_ORDER += [
-        "ja-JP-AoiNeural",
-        "ja-JP-MayuNeural",
-        "ja-JP-DaichiNeural",
+        JP_MODEL_1,
+        JP_MODEL_2,
+        JP_MODEL_3,
+        JP_MODEL_2_DEPRECATED,
+        JP_MODEL_3_DEPRECATED,
     ]
 
     jp_speech_config = speechsdk.SpeechConfig(
@@ -714,6 +718,8 @@ def get_available_voices(text_hash: str) -> list[dict]:
         "Leda": {"display_name": "Leda (JP)", "color": "green"},
         "Zephyr": {"display_name": "Zephyr (Slow JP)", "color": "purple"},
         "ja-JP-AoiNeural": {"display_name": "Aoi", "color": "green"},
+        "ja-JP-Nanami:DragonHDLatestNeural": {"display_name": "Nanami", "color": "green"},
+        "ja-JP-Masaru:DragonHDLatestNeural": {"display_name": "Masaru", "color": "green"},
         "ja-JP-MayuNeural": {"display_name": "Mayu", "color": "green"},
         "ja-JP-DaichiNeural": {"display_name": "Daichi", "color": "green"},
         "en": {"display_name": "English", "color": "blue"},
@@ -728,6 +734,8 @@ def get_available_voices(text_hash: str) -> list[dict]:
         "Zephyr",
         # Azure voices
         "ja-JP-AoiNeural",
+        "ja-JP-Nanami:DragonHDLatestNeural",
+        "ja-JP-Masaru:DragonHDLatestNeural",
         "ja-JP-MayuNeural",
         "ja-JP-DaichiNeural",
         # Common voices for both providers
