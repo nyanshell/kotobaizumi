@@ -5,35 +5,15 @@
 <div class="mb-8">
     <div class="border-b border-slate-200">
         <nav class="flex space-x-8">
-            <button class="tab-button py-3 px-6 text-sm font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-800 hover:border-slate-300 transition-colors ui-active:border-primary-500 ui-active:text-primary-600" data-tab="review">Due for Review</button>
-            <button class="tab-button py-3 px-6 text-sm font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-800 hover:border-slate-300 transition-colors" data-tab="random">Random Practice</button>
+            <button class="tab-button py-3 px-6 text-sm font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-800 hover:border-slate-300 transition-colors ui-active:border-primary-500 ui-active:text-primary-600" data-tab="random">Random Practice</button>
             <button class="tab-button py-3 px-6 text-sm font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-800 hover:border-slate-300 transition-colors" data-tab="all">All Sentences</button>
         </nav>
     </div>
 
-    <!-- Review Tab -->
-    <div id="review-tab" class="tab-content pt-6 block">
-        <div class="bg-slate-50 rounded-xl p-6 mb-6 border border-slate-200">
-            <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-                <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-                    <div class="flex items-center gap-3">
-                        <label for="review-count" class="text-sm font-medium text-slate-700">Number of sentences:</label>
-                        <input type="number" id="review-count" class="w-20 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent" min="1" max="50" value="10">
-                    </div>
-                    <div class="flex gap-3">
-                        <button onclick="loadSentences('review')" class="btn-primary px-4 py-2 text-white rounded-lg font-medium text-sm">Load</button>
-                        <button onclick="loadPreviousPage('review')" class="px-4 py-2 text-slate-600 bg-white border border-slate-300 rounded-lg font-medium text-sm hover:bg-slate-50 transition-colors">Previous</button>
-                        <button onclick="loadNextPage('review')" class="px-4 py-2 text-slate-600 bg-white border border-slate-300 rounded-lg font-medium text-sm hover:bg-slate-50 transition-colors">Next</button>
-                    </div>
-                </div>
-                <a href="{{ url_for('generate') }}" class="btn-success px-4 py-2 text-white rounded-lg font-medium text-sm">Add New Sentence</a>
-            </div>
-        </div>
-        <div id="review-content"></div>
-    </div>
+
 
     <!-- Random Tab -->
-    <div id="random-tab" class="tab-content pt-6 hidden">
+    <div id="random-tab" class="tab-content pt-6 block">
         <div class="bg-slate-50 rounded-xl p-6 mb-6 border border-slate-200">
             <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
                 <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
@@ -77,13 +57,13 @@
 
 <!-- Tab and Audio Management -->
 <script>
-let currentTab = 'review';
+let currentTab = 'random';
 let currentAudio = null;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
-    const sortType = urlParams.get('sort') || 'review';
+    const sortType = urlParams.get('sort') || 'random';
     const count = urlParams.get('count') || getDefaultCount(sortType);
 
     // Set the active tab without causing any requests
@@ -111,7 +91,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         `;
     } else {
-        const showReview = sortType === 'review';
+        const showReview = false;
         sentenceData.forEach(item => {
             const card = createSentenceCard(item, showReview);
             container.appendChild(card);
@@ -124,7 +104,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function getDefaultCount(tabType) {
     switch(tabType) {
-        case 'review': return 10;
         case 'random': return 1;
         case 'all': return 10;
         default: return 10;
@@ -332,28 +311,7 @@ function createSentenceCard(item, showReview = false) {
     return card;
 }
 
-function submitReview(sentenceId, quality) {
-    fetch(`/review/${sentenceId}/${quality}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.result === 'success') {
-            // Show success message and reload page
-            showMessage('Review submitted successfully!', 'success');
-            setTimeout(() => window.location.reload(), 1000);
-        } else {
-            showMessage('Error submitting review', 'error');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showMessage('Error submitting review', 'error');
-    });
-}
+
 
 function deleteSentence(hash) {
     if (confirm('Are you sure you want to delete this sentence?')) {

@@ -117,10 +117,10 @@ def logout():
 @app.route("/")
 @login_required
 def index():
-    sort_type = request.args.get("sort", "review")
+    sort_type = request.args.get("sort", "random")
 
     # Set default count based on sort type
-    default_count = {"review": 10, "random": 1, "all": 10}.get(sort_type, 10)
+    default_count = {"random": 1, "all": 10}.get(sort_type, 10)
 
     try:
         return_count = int(request.args.get("count", default_count))

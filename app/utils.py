@@ -778,9 +778,7 @@ def remove_sentence(user_id: int, hash_text: str):
 
 
 def get_phrases(user_id: int, sort_type: str, return_count=1, offset=0):
-    if sort_type == "review":
-        return SentenceManager.get_sentences_for_review(user_id, return_count, offset)
-    elif sort_type == "all":
+    if sort_type == "all":
         return SentenceManager.get_all_sentences(user_id, return_count, offset)
     else:
         return SentenceManager.get_random_sentences(user_id, return_count, offset)
