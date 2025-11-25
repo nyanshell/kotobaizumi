@@ -182,62 +182,7 @@ class SentenceManager:
             conn.close()
             return False
 
-    @staticmethod
-    def get_sentences_for_review(
-        user_id: int, limit: int = 10, offset: int = 0
-    ) -> list[dict[str, str | int | float]]:
-        """Get sentences due for review for a user. If no sentences are due, return all sentences."""
-        conn = get_connection()
 
-        # First try to get sentences due for review
-        sentences = conn.execute(
-            """
-            SELECT id, hash, ja_text, en_text, cn_text, reading, explanation,
-                   review_count, ease_factor, interval_days, next_review, last_played, play_count, rendered_text, grammar
-            FROM sentences
-            WHERE user_id = ? AND (next_review IS NULL OR next_review <= CURRENT_TIMESTAMP)
-            ORDER BY next_review ASC, created_at ASC
-            LIMIT ? OFFSET ?
-        """,
-            [user_id, limit, offset],
-        ).fetchall()
-
-        # If no sentences are due for review, get all sentences
-        if not sentences:
-            sentences = conn.execute(
-                """
-                SELECT id, hash, ja_text, en_text, cn_text, reading, explanation,
-                       review_count, ease_factor, interval_days, next_review, last_played, play_count, rendered_text, grammar
-                FROM sentences
-                WHERE user_id = ?
-                ORDER BY created_at DESC
-                LIMIT ? OFFSET ?
-            """,
-                [user_id, limit, offset],
-            ).fetchall()
-
-        conn.close()
-
-        return [
-            {
-                "id": s[0],
-                "hash": s[1],
-                "ja_text": s[2],
-                "en_text": s[3],
-                "cn_text": s[4],
-                "reading": s[5],
-                "explanation": s[6],
-                "review_count": s[7],
-                "ease_factor": s[8],
-                "interval_days": s[9],
-                "next_review": s[10],
-                "last_played": s[11],
-                "play_count": s[12],
-                "rendered_text": s[13],
-                "grammar": s[14],
-            }
-            for s in sentences
-        ]
 
     @staticmethod
     def get_random_sentences(

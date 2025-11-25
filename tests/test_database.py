@@ -141,26 +141,7 @@ class TestSentenceManager:
         )
         assert result2 is False
 
-    def test_get_sentences_for_review(self, test_user: int):
-        """Test getting sentences due for review."""
-        # Save a sentence
-        SentenceManager.save_sentence(
-            user_id=test_user,
-            hash_val="review_test_hash",
-            ja_text="レビューテスト",
-            en_text="Review test",
-            cn_text="复习测试",
-            reading="レビューテスト",
-            explanation="Review explanation",
-            rendered_text="レビュー{{テスト}}",
-            grammar="テスト",
-        )
 
-        sentences = SentenceManager.get_sentences_for_review(test_user, limit=10)
-
-        assert len(sentences) >= 1
-        assert all("id" in s for s in sentences)
-        assert all("ja_text" in s for s in sentences)
 
     def test_get_random_sentences(self, test_user: int):
         """Test getting random sentences."""

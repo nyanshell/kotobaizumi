@@ -48,7 +48,7 @@ def client(app: Flask):
 
 
 @pytest.fixture
-def db_connection():
+def db_connection(app):
     """Provide a database connection for testing."""
     conn = get_connection()
     yield conn

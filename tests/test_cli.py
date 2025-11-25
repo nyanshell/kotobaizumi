@@ -112,9 +112,9 @@ class TestDeleteUser:
         # Mock user exists
         mock_conn.execute.side_effect = [
             # Get user info
-            type("MockResult", (), {"fetchone": lambda: (1, "testuser")})(),
+            type("MockResult", (), {"fetchone": lambda self: (1, "testuser")})(),
             # Get sentence count
-            type("MockResult", (), {"fetchone": lambda: (5,)})(),
+            type("MockResult", (), {"fetchone": lambda self: (5,)})(),
             # Delete operations (3 calls)
             None,
             None,
@@ -142,8 +142,8 @@ class TestDeleteUser:
         mock_input.return_value = "no"
         mock_conn = mock_get_connection.return_value
         mock_conn.execute.side_effect = [
-            type("MockResult", (), {"fetchone": lambda: (1, "testuser")})(),
-            type("MockResult", (), {"fetchone": lambda: (0,)})(),
+            type("MockResult", (), {"fetchone": lambda self: (1, "testuser")})(),
+            type("MockResult", (), {"fetchone": lambda self: (0,)})(),
         ]
 
         result = delete_user("testuser")
@@ -157,8 +157,8 @@ class TestDeleteUser:
         mock_input.return_value = "yes"
         mock_conn = mock_get_connection.return_value
         mock_conn.execute.side_effect = [
-            type("MockResult", (), {"fetchone": lambda: (1, "testuser")})(),
-            type("MockResult", (), {"fetchone": lambda: (0,)})(),
+            type("MockResult", (), {"fetchone": lambda self: (1, "testuser")})(),
+            type("MockResult", (), {"fetchone": lambda self: (0,)})(),
             Exception("Database error"),
         ]
 
@@ -221,21 +221,22 @@ class TestShowUserStats:
         mock_conn = mock_get_connection.return_value
         mock_conn.execute.side_effect = [
             # Get user info
+            # Get user info
             type(
                 "MockResult",
                 (),
-                {"fetchone": lambda: (1, "testuser", "2023-01-01 10:00:00")},
+                {"fetchone": lambda self: (1, "testuser", "2023-01-01 10:00:00")},
             )(),
             # Total sentences
-            type("MockResult", (), {"fetchone": lambda: (10,)})(),
+            type("MockResult", (), {"fetchone": lambda self: (10,)})(),
             # Reviewed sentences
-            type("MockResult", (), {"fetchone": lambda: (7,)})(),
+            type("MockResult", (), {"fetchone": lambda self: (7,)})(),
             # Due for review
-            type("MockResult", (), {"fetchone": lambda: (3,)})(),
+            type("MockResult", (), {"fetchone": lambda self: (3,)})(),
             # Total reviews
-            type("MockResult", (), {"fetchone": lambda: (25,)})(),
+            type("MockResult", (), {"fetchone": lambda self: (25,)})(),
             # Average ease
-            type("MockResult", (), {"fetchone": lambda: (2.8,)})(),
+            type("MockResult", (), {"fetchone": lambda self: (2.8,)})(),
         ]
 
         with patch("sys.stdout", new=StringIO()) as fake_out:
@@ -263,17 +264,18 @@ class TestShowUserStats:
         mock_conn = mock_get_connection.return_value
         mock_conn.execute.side_effect = [
             # User info and other stats...
+            # User info and other stats...
             type(
                 "MockResult",
                 (),
-                {"fetchone": lambda: (1, "testuser", "2023-01-01 10:00:00")},
+                {"fetchone": lambda self: (1, "testuser", "2023-01-01 10:00:00")},
             )(),
-            type("MockResult", (), {"fetchone": lambda: (5,)})(),
-            type("MockResult", (), {"fetchone": lambda: (0,)})(),
-            type("MockResult", (), {"fetchone": lambda: (5,)})(),
-            type("MockResult", (), {"fetchone": lambda: (0,)})(),
+            type("MockResult", (), {"fetchone": lambda self: (5,)})(),
+            type("MockResult", (), {"fetchone": lambda self: (0,)})(),
+            type("MockResult", (), {"fetchone": lambda self: (5,)})(),
+            type("MockResult", (), {"fetchone": lambda self: (0,)})(),
             # No average ease (None)
-            type("MockResult", (), {"fetchone": lambda: (None,)})(),
+            type("MockResult", (), {"fetchone": lambda self: (None,)})(),
         ]
 
         with patch("sys.stdout", new=StringIO()) as fake_out:
@@ -294,7 +296,7 @@ class TestResetUserProgress:
         mock_conn = mock_get_connection.return_value
         mock_conn.execute.side_effect = [
             # Get user
-            type("MockResult", (), {"fetchone": lambda: (1,)})(),
+            type("MockResult", (), {"fetchone": lambda self: (1,)})(),
             # Update and delete operations
             None,
             None,
@@ -333,7 +335,7 @@ class TestResetUserProgress:
         mock_input.return_value = "yes"
         mock_conn = mock_get_connection.return_value
         mock_conn.execute.side_effect = [
-            type("MockResult", (), {"fetchone": lambda: (1,)})(),
+            type("MockResult", (), {"fetchone": lambda self: (1,)})(),
             Exception("Database error"),
         ]
 

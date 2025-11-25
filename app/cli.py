@@ -275,6 +275,9 @@ def main():
         "--password", help="Password (will prompt if not provided)"
     )
 
+    # List users
+    subparsers.add_parser("list", help="List all users")
+
     # Delete user
     delete_parser = subparsers.add_parser(
         "delete", help="Delete a user and all their data"
